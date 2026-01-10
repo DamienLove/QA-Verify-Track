@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Link, useNavigate, useLocation, useSearchPar
 import { Repository, AppConfig, Issue, PullRequest } from './types';
 import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
+import { aiService } from './services/aiService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 
 // --- Shared UI Components ---
@@ -370,25 +371,39 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
     // State for PR actions
     const [prProcessing, setPrProcessing] = useState<number | null>(null);
     const [undoPr, setUndoPr] = useState<{id: number, pr: PullRequest} | null>(null);
+    const [manualResolveIds, setManualResolveIds] = useState<Set<number>>(new Set());
+
+    // AI Analysis State
+    const [analyzingIds, setAnalyzingIds] = useState<Set<number>>(new Set());
+    const [analysisResults, setAnalysisResults] = useState<Record<number, string>>({});
 
     // Initial Fetch
     useEffect(() => {
         if (repo && repo.githubToken) {
-            setLoading(true);
-            githubService.initialize(repo.githubToken);
-            
-            Promise.all([
-                githubService.getIssues(repo.owner, repo.name),
-                githubService.getPullRequests(repo.owner, repo.name)
-            ]).then(([fetchedIssues, fetchedPrs]) => {
-                setIssues(fetchedIssues);
-                setPrs(fetchedPrs);
-            }).finally(() => setLoading(false));
+            handleSync(false); // Initial load without auto-populating build number
         }
     }, [repo]);
 
-    const handleAutoPopulate = () => {
-        setBuildNumber((prev) => (parseInt(prev) + 1).toString());
+    const handleSync = async (autoPopulateBuild: boolean = true) => {
+        setLoading(true);
+        if (autoPopulateBuild && repo?.apps[0]?.playStoreUrl) {
+             // Simulate build number fetch/increment
+             const nextBuild = (parseInt(buildNumber) + 1).toString();
+             setBuildNumber(nextBuild);
+        }
+
+        try {
+            const [fetchedIssues, fetchedPrs] = await Promise.all([
+                githubService.getIssues(repo.owner, repo.name),
+                githubService.getPullRequests(repo.owner, repo.name)
+            ]);
+            setIssues(fetchedIssues);
+            setPrs(fetchedPrs);
+        } catch (error) {
+            console.error("Sync failed", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleFixed = async (id: number, number: number) => {
@@ -403,6 +418,23 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
         // Ensure it stays open (no-op mostly, but good for tracking)
     };
 
+    // --- AI Analysis Handler ---
+    const handleAnalyze = async (issue: Issue) => {
+        if (analyzingIds.has(issue.id)) return;
+        
+        setAnalyzingIds(prev => new Set(prev).add(issue.id));
+        try {
+            const result = await aiService.analyzeIssue(issue.title, issue.description);
+            setAnalysisResults(prev => ({...prev, [issue.id]: result}));
+        } finally {
+            setAnalyzingIds(prev => {
+                const next = new Set(prev);
+                next.delete(issue.id);
+                return next;
+            });
+        }
+    };
+
     const handleMergeSequence = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
         try {
@@ -412,6 +444,41 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             setPrs(prev => prev.filter(p => p.id !== pr.id));
         } catch (e) {
             console.error("Merge sequence failed", e);
+        } finally {
+            setPrProcessing(null);
+        }
+    };
+
+    const handleResolveConflicts = async (pr: PullRequest) => {
+        setPrProcessing(pr.id);
+        
+        try {
+            // 1. Fetch details to confirm conflict
+            const details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
+            
+            // mergeable state: true (clean), false (conflict), null (unknown/computing)
+            if (details.mergeable === true) {
+                 // It's actually fine, update UI
+                 setPrs(prev => prev.map(p => p.id === pr.id ? { ...p, hasConflicts: false } : p));
+                 setPrProcessing(null);
+                 return;
+            }
+    
+            // If mergeable is false (conflicts) or null (we might try anyway or wait, let's try update)
+            // Attempt auto-resolve (update branch)
+            const success = await githubService.updateBranch(repo.owner, repo.name, pr.number);
+            
+            if (success) {
+                // Updated branch, GitHub will recompute mergeability. 
+                // Let's hide it from list implying it's being handled/rebuilding
+                 setPrs(prev => prev.filter(p => p.id !== pr.id));
+            } else {
+                // Failed, likely complex conflict
+                 setManualResolveIds(prev => new Set(prev).add(pr.id));
+            }
+        } catch (e) {
+            console.error("Resolve failed", e);
+            setManualResolveIds(prev => new Set(prev).add(pr.id));
         } finally {
             setPrProcessing(null);
         }
@@ -459,7 +526,10 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                         <div className="relative flex items-center">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
                             <input className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-l-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => setBuildNumber(e.target.value)}/>
-                            <button onClick={handleAutoPopulate} className="bg-white dark:bg-[#253827] border-y border-r border-gray-200 dark:border-white/5 rounded-r-lg px-3 py-3 hover:text-primary transition-colors flex items-center"><span className="material-symbols-outlined">sync</span></button>
+                            <button onClick={() => handleSync(true)} className="bg-white dark:bg-[#253827] border-y border-r border-gray-200 dark:border-white/5 rounded-r-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined">sync</span>
+                                <span className="text-xs font-bold hidden sm:inline">Sync</span>
+                            </button>
                         </div>
                     </div>
                     <div className="flex-1 space-y-1.5">
@@ -508,10 +578,34 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                     <div className="bg-gray-50 dark:bg-black/20 rounded-lg p-3">
                                         <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 font-mono text-xs">{issue.description}</p>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-3 mt-1">
-                                        <button onClick={() => handleFixed(issue.id, issue.number)} className="flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-primary text-black font-bold text-xs shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">check_circle</span>Fixed</button>
-                                        <button onClick={() => handleOpen(issue.id, issue.number)} className="flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-orange-500 text-white font-bold text-xs shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">warning</span>Open</button>
-                                        <Link to={`/block/${issue.id}`} className="flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-red-600 text-white font-bold text-xs shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">block</span>Blocked</Link>
+
+                                    {/* AI Analysis Result Display */}
+                                    {analysisResults[issue.id] && (
+                                        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 animate-fade-in">
+                                            <div className="flex items-center gap-1 mb-1 text-primary">
+                                                <span className="material-symbols-outlined text-[16px]">smart_toy</span>
+                                                <span className="text-xs font-bold uppercase">Gemini Analysis</span>
+                                            </div>
+                                            <p className="text-xs text-slate-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">{analysisResults[issue.id]}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-4 gap-2 mt-1">
+                                        <button onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-primary text-black font-bold text-xs shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">check_circle</span>Fixed</button>
+                                        <button onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-orange-500 text-white font-bold text-xs shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">warning</span>Open</button>
+                                        <Link to={`/block/${issue.id}`} className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-red-600 text-white font-bold text-xs shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">block</span>Blocked</Link>
+                                        <button 
+                                            onClick={() => handleAnalyze(issue)} 
+                                            disabled={analyzingIds.has(issue.id)}
+                                            className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-blue-600/10 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-600/20 dark:border-blue-500/20 font-bold text-xs active:scale-95 transition-transform disabled:opacity-50"
+                                        >
+                                            {analyzingIds.has(issue.id) ? (
+                                                <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                            ) : (
+                                                <span className="material-symbols-outlined text-[20px]">analytics</span>
+                                            )}
+                                            Analyze
+                                        </button>
                                     </div>
                                 </article>
                             ))
@@ -523,6 +617,8 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                     <div className="space-y-4">
                         {prs.map(pr => {
                              const isProcessing = prProcessing === pr.id;
+                             const isManual = manualResolveIds.has(pr.id);
+
                              return (
                                 <div key={pr.id} className="group relative bg-white dark:bg-[#1A1616] rounded-xl p-4 border border-gray-200 dark:border-white/10 shadow-sm transition-all animate-fade-in">
                                     <div className="flex justify-between items-start mb-2">
@@ -538,8 +634,51 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-4 font-mono bg-gray-50 dark:bg-white/5 p-2 rounded-lg border border-gray-200 dark:border-white/5">
                                         <span className="text-slate-700 dark:text-gray-300">{pr.branch}</span><span className="material-symbols-outlined text-[12px]">arrow_forward</span><span className="text-slate-700 dark:text-gray-300">{pr.targetBranch}</span>
                                     </div>
+                                    
                                     <div className="flex gap-2">
-                                        <button disabled={isProcessing || pr.hasConflicts} onClick={() => handleMergeSequence(pr)} className={`flex-1 font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-colors ${pr.isDraft ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-primary text-black hover:bg-primary-hover'}`}>{isProcessing ? 'Processing...' : (<><span className="material-symbols-outlined text-[18px]">{pr.isDraft ? 'rocket_launch' : 'merge'}</span>{pr.isDraft ? 'Ready & Merge' : 'Merge'}</>)}</button>
+                                        {pr.hasConflicts ? (
+                                            isManual ? (
+                                                <a 
+                                                    href={`https://github.com/${repo.owner}/${repo.name}/pull/${pr.number}/conflicts`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] hover:bg-amber-600/30"
+                                                >
+                                                    <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                                                    Open in GitHub
+                                                </a>
+                                            ) : (
+                                                <button 
+                                                    disabled={isProcessing}
+                                                    onClick={() => handleResolveConflicts(pr)} 
+                                                    className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
+                                                >
+                                                    {isProcessing ? 'Resolving...' : (
+                                                        <>
+                                                            <span className="material-symbols-outlined text-[16px]">build</span>
+                                                            Resolve Conflicts
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )
+                                        ) : (
+                                            <button 
+                                                disabled={isProcessing}
+                                                onClick={() => handleMergeSequence(pr)} 
+                                                className={`flex-1 font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-colors ${
+                                                    pr.isDraft 
+                                                    ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                                    : 'bg-primary text-black hover:bg-primary-hover'
+                                                }`}
+                                            >
+                                                {isProcessing ? 'Processing...' : (
+                                                    <>
+                                                        <span className="material-symbols-outlined text-[18px]">{pr.isDraft ? 'rocket_launch' : 'merge'}</span>
+                                                        {pr.isDraft ? 'Ready & Merge' : 'Merge'}
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                         <button disabled={isProcessing} onClick={() => handleClosePR(pr)} className="px-4 bg-red-500/10 text-red-600 dark:text-red-500 border border-red-500/20 rounded-lg flex items-center justify-center active:scale-[0.98] hover:bg-red-500/20"><span className="material-symbols-outlined text-[20px]">close</span></button>
                                     </div>
                                 </div>
