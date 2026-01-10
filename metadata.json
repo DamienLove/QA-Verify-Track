@@ -1,0 +1,5 @@
+{
+  "name": "QA Verify & Track",
+  "description": "A high-performance GitHub issue tracker and verification tool for mobile development pipelines.",
+  "requestFramePermissions": []
+}
