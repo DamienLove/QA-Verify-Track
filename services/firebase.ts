@@ -1,8 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { 
-    getAuth, 
-    GoogleAuthProvider, 
-    signInWithPopup, 
+import { initializeApp, type FirebaseOptions } from "firebase/app";
+import {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut,
@@ -10,26 +10,40 @@ import {
     User
 } from "firebase/auth";
 import { 
-    getFirestore, 
-    doc, 
-    setDoc, 
-    getDoc, 
-    collection, 
-    query, 
-    where, 
-    onSnapshot 
+    getFirestore,
+    doc,
+    setDoc,
+    getDoc,
+    collection,
+    query,
+    where,
+    onSnapshot
 } from "firebase/firestore";
+import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 import { Repository } from "../types";
 
-// REPLACE WITH YOUR REAL FIREBASE CONFIGURATION
-// You can get this from the Firebase Console -> Project Settings -> General -> Your Apps
-const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+/**
+ * Default Firebase configuration (web app) provided by user.
+ * Override via Vite env vars (VITE_FIREBASE_*) to swap environments.
+ */
+const defaultWebConfig = {
+  apiKey: "AIzaSyAgKnkhu_dcjcbXsl1GVWOXYoY-CmhMwZ4",
+  authDomain: "qa-verify-and-ttack.firebaseapp.com",
+  projectId: "qa-verify-and-ttack",
+  storageBucket: "qa-verify-and-ttack.firebasestorage.app",
+  messagingSenderId: "656737115796",
+  appId: "1:656737115796:web:779252a25a44df70001e81",
+  measurementId: "G-RBKTZGBYV9"
+} as const;
+
+const firebaseConfig: FirebaseOptions = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? defaultWebConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? defaultWebConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? defaultWebConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? defaultWebConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? defaultWebConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? defaultWebConfig.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? defaultWebConfig.measurementId,
 };
 
 // Initialize Firebase
@@ -37,6 +51,13 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
+
+// Analytics is optional; only initialize when supported (browser, not SSR)
+isAnalyticsSupported().then((supported) => {
+  if (supported) {
+    getAnalytics(app);
+  }
+});
 
 export const firebaseService = {
     // Auth

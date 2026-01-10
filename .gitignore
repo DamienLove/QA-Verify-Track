@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+.firebase
+.gradle
+androidApp/.gradle
+androidApp/build
+androidApp/app/build
+*.iml
 
 # Editor directories and files
 .vscode/*
