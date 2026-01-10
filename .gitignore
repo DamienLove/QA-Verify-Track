@@ -16,6 +16,7 @@ dist-ssr
 androidApp/.gradle
 androidApp/build
 androidApp/app/build
+androidApp/gradle-8.7/
 *.iml
 
 # Editor directories and files

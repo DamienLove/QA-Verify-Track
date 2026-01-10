@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "656737115796-jddj172rtj6tot0a9pdmkchanl9othio.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.qa.verifyandtrack.app",
+            "certificate_hash": "d0beb205d18f46cb17354bc41b4673a59cbaa9c8"
+          }
+        },
+        {
           "client_id": "656737115796-1bfvj6re1numbu5db28irt9e8728d7li.apps.googleusercontent.com",
           "client_type": 3
         }
