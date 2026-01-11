@@ -440,8 +440,10 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
     const [manualResolveIds, setManualResolveIds] = useState<Set<number>>(new Set());
 
     // AI Analysis State
-    const [analyzingIds, setAnalyzingIds] = useState<Set<number>>(new Set());
-    const [analysisResults, setAnalysisResults] = useState<Record<number, string>>({});
+  const [analyzingIds, setAnalyzingIds] = useState<Set<number>>(new Set());
+  const [analysisResults, setAnalysisResults] = useState<Record<number, string>>({});
+  const [syncError, setSyncError] = useState<string>('');
+  const [prError, setPrError] = useState<string>('');
 
     // Initial Fetch
     useEffect(() => {
@@ -453,6 +455,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
     // fetchStoreBuild: when true, try to auto-populate build number from stored app config (no external store fetch to avoid CORS)
     const handleSync = async (fetchStoreBuild: boolean = false) => {
         setLoading(true);
+        setSyncError('');
         if (fetchStoreBuild && repo?.apps[0]?.playStoreUrl) {
              const storedBuild = repo.apps[0]?.buildNumber;
              if (storedBuild) {
@@ -506,6 +509,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             setPrs(fetchedPrs);
         } catch (error) {
             console.error("Sync failed", error);
+            setSyncError('Failed to sync GitHub data. Check your token and network.');
         } finally {
             setLoading(false);
         }
@@ -542,6 +546,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
 
     const handleMergeSequence = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
+        setPrError('');
         try {
             if (pr.isDraft) await githubService.updatePR(repo.owner, repo.name, pr.number, { isDraft: false });
             await githubService.approvePR(repo.owner, repo.name, pr.number);
@@ -549,6 +554,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             setPrs(prev => prev.filter(p => p.id !== pr.id));
         } catch (e) {
             console.error("Merge sequence failed", e);
+            setPrError('Merge failed. Confirm repo access and PR state.');
         } finally {
             setPrProcessing(null);
         }
@@ -556,7 +562,8 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
 
     const handleResolveConflicts = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
-        
+        setPrError('');
+
         try {
             // 1. Fetch details to confirm conflict
             const details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
@@ -574,16 +581,18 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             const success = await githubService.updateBranch(repo.owner, repo.name, pr.number);
             
             if (success) {
-                // Updated branch, GitHub will recompute mergeability. 
+                // Updated branch, GitHub will recompute mergeability.
                 // Let's hide it from list implying it's being handled/rebuilding
                  setPrs(prev => prev.filter(p => p.id !== pr.id));
             } else {
                 // Failed, likely complex conflict
                  setManualResolveIds(prev => new Set(prev).add(pr.id));
+                 setPrError('Auto-resolve failed. Open the conflict view in GitHub.');
             }
         } catch (e) {
             console.error("Resolve failed", e);
             setManualResolveIds(prev => new Set(prev).add(pr.id));
+            setPrError('Resolve failed. Check permissions or try manually in GitHub.');
         } finally {
             setPrProcessing(null);
         }
@@ -671,6 +680,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
 
                 {!loading && tab === 'issues' && (
                     <>
+                        {syncError && <div className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 text-xs px-3 py-2">{syncError}</div>}
                         <div className="flex justify-between items-center pb-1">
                              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Pending Verification</h2>
                              <span className="text-[11px] text-gray-400">{issues.length} remaining</span>
@@ -733,6 +743,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
 
                 {!loading && tab === 'prs' && (
                     <div className="space-y-4">
+                        {prError && <div className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 text-xs px-3 py-2">{prError}</div>}
                         {prs.map(pr => {
                              const isProcessing = prProcessing === pr.id;
                              const isManual = manualResolveIds.has(pr.id);
