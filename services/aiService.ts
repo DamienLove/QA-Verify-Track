@@ -31,4 +31,26 @@ export const aiService = {
       return "Unable to analyze issue at this time. Please check your network or API key.";
     }
   },
+
+  generateTests: async (appName: string, description: string): Promise<string[]> => {
+      if (!aiClient) {
+        // Return dummy data if AI is disabled, to allow testing the UI
+        return ["Verify login functionality", "Check user profile update", "Test checkout flow (Mock)"];
+      }
+
+      try {
+        const response = await aiClient.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `You are a QA Lead. Generate a checklist of 5-10 essential functional verification tests for a software project named "${appName}" with the following description/context: "${description}". Return ONLY the list of tests, one per line, without numbering or bullets.`,
+            config: {
+                temperature: 0.4,
+            },
+        });
+        const text = response.text || "";
+        return text.split('\n').map(t => t.replace(/^[-*•\d\.]+\s+/, '').trim()).filter(Boolean);
+      } catch (error) {
+          console.error("AI Test Generation failed", error);
+          return [];
+      }
+  }
 };
