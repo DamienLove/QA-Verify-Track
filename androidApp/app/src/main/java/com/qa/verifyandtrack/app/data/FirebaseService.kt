@@ -12,6 +12,7 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.firestore
 import com.qa.verifyandtrack.app.data.model.AppConfig
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import com.qa.verifyandtrack.app.data.model.Repo
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +45,21 @@ class FirebaseService(
         awaitClose { registration.remove() }
     }
 
+    fun observeGlobalSettings(userId: String): Flow<GlobalSettings> = callbackFlow {
+        val registration: ListenerRegistration = db.collection("user_settings")
+            .document(userId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(GlobalSettings()).isSuccess
+                    return@addSnapshotListener
+                }
+                val settings = snapshot?.get("globalSettings")
+                trySend(settings.toGlobalSettings()).isSuccess
+            }
+
+        awaitClose { registration.remove() }
+    }
+
     suspend fun saveRepos(userId: String, repos: List<Repo>) {
         val payload = mapOf("repos" to repos.map { repo ->
             mapOf(
@@ -53,6 +69,7 @@ class FirebaseService(
                 "displayName" to repo.displayName,
                 "apiEndpoint" to repo.apiEndpoint,
                 "githubToken" to repo.githubToken,
+                "useCustomToken" to repo.useCustomToken,
                 "avatarUrl" to repo.avatarUrl,
                 "apps" to repo.apps.map { app ->
                     mapOf(
@@ -69,6 +86,18 @@ class FirebaseService(
                 "branch" to repo.branch
             )
         })
+        db.collection("user_settings")
+            .document(userId)
+            .set(payload, SetOptions.merge())
+            .await()
+    }
+
+    suspend fun saveGlobalSettings(userId: String, settings: GlobalSettings) {
+        val payload = mapOf("globalSettings" to mapOf(
+            "globalGithubToken" to settings.globalGithubToken,
+            "defaultBranch" to settings.defaultBranch,
+            "theme" to settings.theme
+        ))
         db.collection("user_settings")
             .document(userId)
             .set(payload, SetOptions.merge())
@@ -105,6 +134,7 @@ private fun Any?.toRepoList(): List<Repo> {
             displayName = map["displayName"] as? String,
             apiEndpoint = map["apiEndpoint"] as? String,
             githubToken = map["githubToken"] as? String,
+            useCustomToken = map["useCustomToken"] as? Boolean ?: false,
             avatarUrl = map["avatarUrl"] as? String,
             apps = (map["apps"] as? List<*>)?.mapNotNull { app ->
                 val a = app as? Map<*, *> ?: return@mapNotNull null
@@ -122,4 +152,13 @@ private fun Any?.toRepoList(): List<Repo> {
             branch = map["branch"] as? String ?: "main"
         )
     }
+}
+
+private fun Any?.toGlobalSettings(): GlobalSettings {
+    val map = this as? Map<*, *> ?: return GlobalSettings()
+    return GlobalSettings(
+        globalGithubToken = map["globalGithubToken"] as? String,
+        defaultBranch = map["defaultBranch"] as? String ?: "main",
+        theme = map["theme"] as? String ?: "light"
+    )
 }
