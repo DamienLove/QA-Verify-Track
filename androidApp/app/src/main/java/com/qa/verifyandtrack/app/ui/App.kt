@@ -410,8 +410,8 @@ private fun ProfileScreen(
 
             item {
                 ListItem(
-                    headlineContent = { Text("Global Settings") },
-                    supportingContent = { Text("Configure GitHub token and defaults") },
+                    headlineContent = { Text("Configuration") },
+                    supportingContent = { Text("Save your GitHub PAT before adding repositories") },
                     leadingContent = {
                         Icon(Icons.Rounded.Settings, contentDescription = null)
                     },
@@ -459,10 +459,15 @@ private fun GlobalSettingsScreen(
     var githubToken by remember { mutableStateOf(uiState.globalSettings.globalGithubToken ?: "") }
     var defaultBranch by remember { mutableStateOf(uiState.globalSettings.defaultBranch) }
 
+    LaunchedEffect(uiState.globalSettings) {
+        githubToken = uiState.globalSettings.globalGithubToken ?: ""
+        defaultBranch = uiState.globalSettings.defaultBranch
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Global Settings") },
+                title = { Text("Configuration") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
@@ -481,7 +486,7 @@ private fun GlobalSettingsScreen(
         ) {
             item {
                 Text(
-                    text = "GitHub Configuration",
+                    text = "GitHub PAT",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -492,9 +497,35 @@ private fun GlobalSettingsScreen(
                     value = githubToken,
                     onValueChange = { githubToken = it },
                     label = { Text("GitHub Personal Access Token") },
-                    supportingText = { Text("This token will be used for all repositories unless overridden") },
+                    supportingText = { Text("Save this globally before adding a repository") },
+                    visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
+                )
+            }
+
+            item {
+                FilledTonalButton(
+                    onClick = {
+                        onSave(
+                            com.qa.verifyandtrack.app.data.model.GlobalSettings(
+                                globalGithubToken = githubToken.trim().ifBlank { null },
+                                defaultBranch = uiState.globalSettings.defaultBranch,
+                                theme = uiState.globalSettings.theme
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save GitHub PAT")
+                }
+            }
+
+            item {
+                Text(
+                    text = "Repository Defaults",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
                 )
             }
 
@@ -514,7 +545,7 @@ private fun GlobalSettingsScreen(
                     onClick = {
                         onSave(
                             com.qa.verifyandtrack.app.data.model.GlobalSettings(
-                                globalGithubToken = githubToken.ifBlank { null },
+                                globalGithubToken = uiState.globalSettings.globalGithubToken,
                                 defaultBranch = defaultBranch,
                                 theme = uiState.globalSettings.theme
                             )
@@ -523,7 +554,7 @@ private fun GlobalSettingsScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save Settings")
+                    Text("Save Defaults")
                 }
             }
 
