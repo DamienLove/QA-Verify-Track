@@ -3,9 +3,31 @@ import { Issue, PullRequest } from '../types';
 
 let octokit: Octokit | null = null;
 
+const mapPriority = (labels: any[]): Issue['priority'] => {
+  const names = labels.map((l: any) => (l.name || '').toLowerCase());
+  if (names.some(n => n === 'critical' || n.includes('p0') || n.includes('sev: critical') || n.includes('severity: critical'))) return 'critical';
+  if (names.some(n => n === 'high' || n.includes('p1') || n.includes('priority: high') || n.includes('severity: high'))) return 'high';
+  if (names.some(n => n === 'medium' || n.includes('p2') || n.includes('priority: medium') || n.includes('severity: medium'))) return 'medium';
+  if (names.some(n => n === 'low' || n.includes('p3') || n.includes('priority: low') || n.includes('severity: low') || n.includes('minor'))) return 'low';
+  return 'medium';
+};
+
 export const githubService = {
   initialize: (token: string) => {
     octokit = new Octokit({ auth: token });
+  }, 
+
+  getIssueComments: async (owner: string, repo: string, issueNumber: number) => {
+    if (!octokit) throw new Error("GitHub service not initialized. Please configure your token.");
+
+    const { data } = await octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      per_page: 100
+    });
+
+    return data;
   },
 
   getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open'): Promise<Issue[]> => {
@@ -30,7 +52,7 @@ export const githubService = {
           title: i.title,
           description: i.body || '',
           state: i.state,
-          priority: i.labels.find((l: any) => l.name === 'critical' || l.name === 'high' || l.name === 'medium' || l.name === 'low')?.name || 'medium',
+          priority: mapPriority(i.labels),
           labels: i.labels.map((l: any) => l.name),
           type: i.labels.find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui')?.name || 'bug',
           createdAt: i.created_at,
