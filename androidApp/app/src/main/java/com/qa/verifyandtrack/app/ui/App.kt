@@ -3,8 +3,11 @@ package com.qa.verifyandtrack.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,18 +16,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -32,6 +42,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -117,10 +128,25 @@ fun QAApp(viewModel: MainViewModel = viewModel()) {
                         composable("home") {
                             HomeScreen(
                                 uiState = uiState,
-                                onSignOut = viewModel::signOut,
+                                onAvatarClick = { navController.navigate("profile") },
                                 onRepoClick = { repoId ->
                                     navController.navigate("repo/$repoId")
                                 }
+                            )
+                        }
+                        composable("profile") {
+                            ProfileScreen(
+                                uiState = uiState,
+                                onBack = { navController.popBackStack() },
+                                onSignOut = viewModel::signOut,
+                                onGlobalSettings = { navController.navigate("globalSettings") }
+                            )
+                        }
+                        composable("globalSettings") {
+                            GlobalSettingsScreen(
+                                uiState = uiState,
+                                onBack = { navController.popBackStack() },
+                                onSave = viewModel::saveGlobalSettings
                             )
                         }
                         composable("repo/{repoId}") { backStackEntry ->
@@ -129,6 +155,7 @@ fun QAApp(viewModel: MainViewModel = viewModel()) {
                             if (repo != null) {
                                 RepoDetailScreen(
                                     repo = repo,
+                                    globalSettings = uiState.globalSettings,
                                     onBack = { navController.popBackStack() }
                                 )
                             } else {
@@ -206,16 +233,38 @@ private fun LoginScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun HomeScreen(
     uiState: UiState,
-    onSignOut: () -> Unit,
+    onAvatarClick: () -> Unit,
     onRepoClick: (String) -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(uiState.user?.email ?: "Signed in") },
+                title = { Text("My Repositories") },
                 actions = {
-                    IconButton(onClick = onSignOut) {
-                        Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = "Sign out")
+                    IconButton(onClick = onAvatarClick) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = CircleShape
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            val email = uiState.user?.email ?: ""
+                            val initial = email.firstOrNull()?.uppercase() ?: "U"
+                            Text(
+                                text = initial,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors()
@@ -284,11 +333,237 @@ private fun RepoList(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
+private fun ProfileScreen(
+    uiState: UiState,
+    onBack: () -> Unit,
+    onSignOut: () -> Unit,
+    onGlobalSettings: () -> Unit
+) {
+    BackHandler(onBack = onBack)
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Profile") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors()
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = CircleShape
+                                )
+                                .border(
+                                    width = 3.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val email = uiState.user?.email ?: ""
+                            val initial = email.firstOrNull()?.uppercase() ?: "U"
+                            Text(
+                                text = initial,
+                                style = MaterialTheme.typography.displayMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = uiState.user?.email ?: "No email",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = uiState.user?.uid?.take(8) ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+            }
+
+            item {
+                ListItem(
+                    headlineContent = { Text("Global Settings") },
+                    supportingContent = { Text("Configure GitHub token and defaults") },
+                    leadingContent = {
+                        Icon(Icons.Rounded.Settings, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable { onGlobalSettings() }
+                )
+            }
+
+            item {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            }
+
+            item {
+                ListItem(
+                    headlineContent = { Text("Sign Out") },
+                    supportingContent = { Text("Log out of your account") },
+                    leadingContent = {
+                        Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable { onSignOut() }
+                )
+            }
+
+            item {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "Repositories: ${uiState.repos.size}",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun GlobalSettingsScreen(
+    uiState: UiState,
+    onBack: () -> Unit,
+    onSave: (com.qa.verifyandtrack.app.data.model.GlobalSettings) -> Unit
+) {
+    BackHandler(onBack = onBack)
+
+    var githubToken by remember { mutableStateOf(uiState.globalSettings.globalGithubToken ?: "") }
+    var defaultBranch by remember { mutableStateOf(uiState.globalSettings.defaultBranch) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Global Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors()
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Text(
+                    text = "GitHub Configuration",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            item {
+                OutlinedTextField(
+                    value = githubToken,
+                    onValueChange = { githubToken = it },
+                    label = { Text("GitHub Personal Access Token") },
+                    supportingText = { Text("This token will be used for all repositories unless overridden") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+
+            item {
+                OutlinedTextField(
+                    value = defaultBranch,
+                    onValueChange = { defaultBranch = it },
+                    label = { Text("Default Branch") },
+                    supportingText = { Text("Default branch name for new repositories") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+
+            item {
+                FilledTonalButton(
+                    onClick = {
+                        onSave(
+                            com.qa.verifyandtrack.app.data.model.GlobalSettings(
+                                globalGithubToken = githubToken.ifBlank { null },
+                                defaultBranch = defaultBranch,
+                                theme = uiState.globalSettings.theme
+                            )
+                        )
+                        onBack()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save Settings")
+                }
+            }
+
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            text = "About GitHub Token",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Your GitHub Personal Access Token is used to authenticate API requests. It will be stored securely and used for all repositories unless you specify a custom token per repository.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun RepoDetailScreen(
     repo: Repo,
+    globalSettings: com.qa.verifyandtrack.app.data.model.GlobalSettings,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
+
+    val effectiveToken = if (repo.useCustomToken) {
+        repo.githubToken
+    } else {
+        globalSettings.globalGithubToken
+    }
 
     Scaffold(
         topBar = {
@@ -337,6 +612,69 @@ private fun RepoDetailScreen(
             if (repo.apiEndpoint != null) {
                 item {
                     DetailItem(label = "API Endpoint", value = repo.apiEndpoint)
+                }
+            }
+
+            item {
+                Text(
+                    text = "GitHub Token Configuration",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (repo.useCustomToken) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.secondaryContainer
+                        }
+                    )
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (repo.useCustomToken) "Using Custom Token" else "Using Global Token",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (repo.useCustomToken) {
+                                        "This repository uses its own token"
+                                    } else {
+                                        "This repository uses the global GitHub token"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = if (effectiveToken != null) {
+                                "Token: ${effectiveToken.take(4)}...${effectiveToken.takeLast(4)}"
+                            } else {
+                                "No token configured"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (!repo.useCustomToken && globalSettings.globalGithubToken == null) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "⚠️ Configure global token in settings",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             }
 
