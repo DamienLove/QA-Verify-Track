@@ -91,6 +91,33 @@ class MainViewModel(
         }
     }
 
+    fun saveRepoTokenSettings(
+        repoId: String,
+        useCustomToken: Boolean,
+        githubToken: String?
+    ) {
+        val userId = _uiState.value.user?.uid ?: return
+        val normalizedToken = githubToken?.trim()?.ifBlank { null }
+        val updatedRepos = _uiState.value.repos.map { repo ->
+            if (repo.id == repoId) {
+                repo.copy(
+                    githubToken = normalizedToken,
+                    useCustomToken = useCustomToken
+                )
+            } else {
+                repo
+            }
+        }
+        _uiState.update { it.copy(repos = updatedRepos) }
+        viewModelScope.launch {
+            runCatching {
+                service.saveRepos(userId, updatedRepos)
+            }.onFailure { error ->
+                _uiState.update { it.copy(message = error.message) }
+            }
+        }
+    }
+
     fun signOut() = viewModelScope.launch {
         runCatching { service.signOut() }
     }

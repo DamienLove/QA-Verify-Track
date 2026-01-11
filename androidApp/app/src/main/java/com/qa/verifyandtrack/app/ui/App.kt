@@ -156,7 +156,8 @@ fun QAApp(viewModel: MainViewModel = viewModel()) {
                                 RepoDetailScreen(
                                     repo = repo,
                                     globalSettings = uiState.globalSettings,
-                                    onBack = { navController.popBackStack() }
+                                    onBack = { navController.popBackStack() },
+                                    onSaveTokenSettings = viewModel::saveRepoTokenSettings
                                 )
                             } else {
                                 LaunchedEffect(Unit) {
@@ -555,14 +556,25 @@ private fun GlobalSettingsScreen(
 private fun RepoDetailScreen(
     repo: Repo,
     globalSettings: com.qa.verifyandtrack.app.data.model.GlobalSettings,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onSaveTokenSettings: (String, Boolean, String?) -> Unit
 ) {
     BackHandler(onBack = onBack)
 
-    val effectiveToken = if (repo.useCustomToken) {
-        repo.githubToken
+    var useCustomToken by remember(repo.id) { mutableStateOf(repo.useCustomToken) }
+    var customToken by remember(repo.id) { mutableStateOf(repo.githubToken ?: "") }
+
+    LaunchedEffect(repo.useCustomToken, repo.githubToken) {
+        useCustomToken = repo.useCustomToken
+        customToken = repo.githubToken.orEmpty()
+    }
+
+    val normalizedCustomToken = customToken.trim()
+    val globalToken = globalSettings.globalGithubToken?.takeIf { it.isNotBlank() }
+    val effectiveToken = if (useCustomToken) {
+        normalizedCustomToken.ifBlank { null }
     } else {
-        globalSettings.globalGithubToken
+        globalToken
     }
 
     Scaffold(
@@ -587,9 +599,149 @@ private fun RepoDetailScreen(
         ) {
             item {
                 Text(
-                    text = "Repository Details",
+                    text = "GitHub PAT",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
+                )
+            }
+
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Main PAT",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Shared across repositories unless a custom token is enabled",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = if (globalToken != null) {
+                                "Token: ${globalToken.take(4)}...${globalToken.takeLast(4)}"
+                            } else {
+                                "No main PAT configured"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Use custom PAT for this repository",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Disable to use your main PAT",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Switch(
+                        checked = useCustomToken,
+                        onCheckedChange = { useCustomToken = it }
+                    )
+                }
+            }
+
+            if (useCustomToken) {
+                item {
+                    OutlinedTextField(
+                        value = customToken,
+                        onValueChange = { customToken = it },
+                        label = { Text("Custom GitHub PAT") },
+                        supportingText = { Text("Only used for this repository") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            }
+
+            item {
+                FilledTonalButton(
+                    onClick = {
+                        onSaveTokenSettings(
+                            repo.id,
+                            useCustomToken,
+                            normalizedCustomToken.ifBlank { null }
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save Token Settings")
+                }
+            }
+
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (useCustomToken) {
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.secondaryContainer        
+                        }
+                    )
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            text = if (useCustomToken) "Using Custom Token" else "Using Main Token",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (useCustomToken) {
+                                "This repository uses its own token"
+                            } else {
+                                "This repository uses your main GitHub token"
+                            },
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = if (effectiveToken != null) {
+                                "Token: ${effectiveToken.take(4)}...${effectiveToken.takeLast(4)}"
+                            } else {
+                                "No token configured"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (!useCustomToken && globalToken == null) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "⚠️ Configure main PAT in settings",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    text = "Repository Details",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
@@ -612,69 +764,6 @@ private fun RepoDetailScreen(
             if (repo.apiEndpoint != null) {
                 item {
                     DetailItem(label = "API Endpoint", value = repo.apiEndpoint)
-                }
-            }
-
-            item {
-                Text(
-                    text = "GitHub Token Configuration",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (repo.useCustomToken) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        }
-                    )
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (repo.useCustomToken) "Using Custom Token" else "Using Global Token",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = if (repo.useCustomToken) {
-                                        "This repository uses its own token"
-                                    } else {
-                                        "This repository uses the global GitHub token"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = if (effectiveToken != null) {
-                                "Token: ${effectiveToken.take(4)}...${effectiveToken.takeLast(4)}"
-                            } else {
-                                "No token configured"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        if (!repo.useCustomToken && globalSettings.globalGithubToken == null) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = "⚠️ Configure global token in settings",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
                 }
             }
 
