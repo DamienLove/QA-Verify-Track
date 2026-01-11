@@ -172,6 +172,8 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
     const navigate = useNavigate();
     const [view, setView] = useState<'list' | 'edit'>('list');
     const [activeRepoId, setActiveRepoId] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState('');
 
     // Form State
     const [formData, setFormData] = useState<Partial<Repository>>({
@@ -225,19 +227,51 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
     }
 
     const saveRepo = async () => {
-        if (!formData.name || !formData.owner) return;
-        
-        let updatedRepos;
-        if (activeRepoId) {
-            updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...formData } as Repository : r);
-        } else {
-            updatedRepos = [...repos, { ...formData, isConnected: true } as Repository];
+        if (!formData.name || !formData.owner) {
+            setSaveError('Owner and repo name are required.');
+            return;
         }
-        
-        // Save to Firestore
-        await firebaseService.saveUserRepos(user.uid, updatedRepos);
-        // Local state will update via snapshot listener in App
-        setView('list');
+
+        setSaveError('');
+        setSaving(true);
+
+        try {
+            let updatedRepos;
+            if (activeRepoId) {
+                updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...formData } as Repository : r);
+            } else {
+                updatedRepos = [...repos, { ...formData, isConnected: true } as Repository];
+            }
+
+            // Optimistically update local state for immediate UI feedback
+            setRepos(updatedRepos);
+
+            // Persist to Firestore
+            await firebaseService.saveUserRepos(user.uid, updatedRepos);
+            setView('list');
+        } catch (error: any) {
+            console.error('Failed to save repository', error);
+            setSaveError(error?.message || 'Failed to save. Check your network or Firebase rules.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const deleteRepo = async () => {
+        if (!activeRepoId) return;
+        setSaveError('');
+        setSaving(true);
+        try {
+            const updatedRepos = repos.filter(r => r.id !== activeRepoId);
+            setRepos(updatedRepos); // optimistic
+            await firebaseService.saveUserRepos(user.uid, updatedRepos);
+            setView('list');
+        } catch (error: any) {
+            console.error('Failed to delete repository', error);
+            setSaveError(error?.message || 'Failed to delete. Check your network or Firebase rules.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (view === 'list') {
@@ -279,8 +313,33 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
                     </button>
                     <h1 className="text-lg font-bold">{activeRepoId ? 'Edit Repository' : 'Add Repository'}</h1>
                 </div>
-                <button onClick={saveRepo} className="text-primary font-bold text-sm">Save</button>
+                <div className="flex items-center gap-2">
+                    {activeRepoId && (
+                        <button
+                            onClick={deleteRepo}
+                            disabled={saving}
+                            className="text-red-500 font-bold text-sm disabled:opacity-50 disabled:pointer-events-none flex items-center gap-1 border border-red-500/40 rounded-md px-2 py-1"
+                        >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                            Delete
+                        </button>
+                    )}
+                    <button
+                        onClick={saveRepo}
+                        disabled={saving}
+                        className="text-primary font-bold text-sm disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+                    >
+                        {saving && <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>}
+                        {saving ? 'Saving...' : 'Save'}
+                    </button>
+                </div>
             </header>
+
+            {saveError && (
+                <div className="mx-4 mt-3 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg">
+                    {saveError}
+                </div>
+            )}
 
             <main className="p-4 space-y-6">
                 <section className="space-y-4">
@@ -362,7 +421,14 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
 
     const [tab, setTab] = useState<'issues' | 'prs'>('issues');
     const [buildNumber, setBuildNumber] = useState(repo?.apps[0]?.buildNumber || '0');
-    
+
+    // Ensure GitHub client is ready whenever the selected repo/token changes
+    useEffect(() => {
+        if (repo?.githubToken) {
+            githubService.initialize(repo.githubToken);
+        }
+    }, [repo?.githubToken]);
+
     // Real Data State
     const [issues, setIssues] = useState<Issue[]>([]);
     const [prs, setPrs] = useState<PullRequest[]>([]);
@@ -384,10 +450,11 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
         }
     }, [repo]);
 
-    const handleSync = async (autoPopulateBuild: boolean = true) => {
+    // fetchStoreBuild: when true, we try to auto-populate build number (stubbed) before syncing
+    const handleSync = async (fetchStoreBuild: boolean = false) => {
         setLoading(true);
-        if (autoPopulateBuild && repo?.apps[0]?.playStoreUrl) {
-             // Simulate build number fetch/increment
+        if (fetchStoreBuild && repo?.apps[0]?.playStoreUrl) {
+             // Simulate store build fetch/increment (placeholder until real Play Store API)
              const nextBuild = (parseInt(buildNumber) + 1).toString();
              setBuildNumber(nextBuild);
         }
@@ -397,7 +464,39 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                 githubService.getIssues(repo.owner, repo.name),
                 githubService.getPullRequests(repo.owner, repo.name)
             ]);
-            setIssues(fetchedIssues);
+
+            // Filter out issues that already have status comments for this build number
+            const statusRegex = /\b(open|closed|blocked)\s*v?(\d+)\b/i;
+            const issuesWithComments = await Promise.all(
+              fetchedIssues.map(async (issue) => {
+                try {
+                  const comments = await githubService.getIssueComments(repo.owner, repo.name, issue.number);
+                  // Find the latest status comment and extract its build number
+                  const latestMatch = comments
+                    .map((c: any) => ({ body: c.body || '', created_at: c.created_at }))
+                    .filter((c: any) => statusRegex.test(c.body))
+                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    [0];
+
+                  if (latestMatch) {
+                    const [, , buildStr] = latestMatch.body.match(statusRegex) || [];
+                    const commentBuild = parseInt(buildStr, 10);
+                    const targetBuild = parseInt(buildNumber || '0', 10);
+                    // Hide if the latest status comment is for this build or any higher build
+                    if (!isNaN(commentBuild) && commentBuild >= targetBuild) {
+                      return null;
+                    }
+                  }
+                  return issue;
+                } catch (err) {
+                  // If comments fail to load, keep the issue visible
+                  console.error('Failed to load comments for issue', issue.number, err);
+                  return issue;
+                }
+              })
+            );
+
+            setIssues(issuesWithComments.filter(Boolean) as Issue[]);
             setPrs(fetchedPrs);
         } catch (error) {
             console.error("Sync failed", error);
@@ -523,13 +622,25 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                  <div className="flex items-end gap-3">
                     <div className="flex-1 space-y-1.5">
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
-                        <div className="relative flex items-center">
+                        <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-l-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => setBuildNumber(e.target.value)}/>
-                            <button onClick={() => handleSync(true)} className="bg-white dark:bg-[#253827] border-y border-r border-gray-200 dark:border-white/5 rounded-r-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1">
-                                <span className="material-symbols-outlined">sync</span>
-                                <span className="text-xs font-bold hidden sm:inline">Sync</span>
-                            </button>
+                            <input className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => setBuildNumber(e.target.value)}/>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleSync(false)}
+                                    className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined">sync</span>
+                                    <span className="text-xs font-bold hidden sm:inline">Sync</span>
+                                </button>
+                                <button
+                                    onClick={() => handleSync(true)}
+                                    className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
+                                >
+                                    <span className="material-symbols-outlined">system_update_alt</span>
+                                    <span className="text-xs font-bold hidden sm:inline">Store</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div className="flex-1 space-y-1.5">
@@ -554,55 +665,54 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
 
                 {!loading && tab === 'issues' && (
                     <>
-                        <div className="flex justify-between items-center pb-2">
+                        <div className="flex justify-between items-center pb-1">
                              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Pending Verification</h2>
-                             <span className="text-xs text-gray-500">{issues.length} remaining</span>
+                             <span className="text-[11px] text-gray-400">{issues.length} remaining</span>
                         </div>
                         {issues.length === 0 ? (
                             <div className="text-center py-10 opacity-50"><span className="material-symbols-outlined text-6xl text-gray-600">check_circle</span><p className="mt-4 text-gray-400">All cleared for build {buildNumber}!</p></div>
                         ) : (
                             issues.map(issue => (
-                                <article key={issue.id} className="relative flex flex-col gap-4 rounded-xl bg-white dark:bg-[#1c2e1f] p-4 shadow-sm border border-gray-100 dark:border-white/5 animate-fade-in">
-                                    <div className="flex items-start justify-between gap-4">
+                                <article key={issue.id} className="relative flex flex-col gap-2 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-3 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
+                                    <div className="flex items-start justify-between gap-3">
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
                                                 <span className={`font-bold text-xs tracking-tight flex items-center gap-1 uppercase ${issue.priority === 'critical' ? 'text-red-500' : issue.priority === 'high' ? 'text-orange-500' : 'text-blue-400'}`}>
                                                     <span className="material-symbols-outlined text-[14px] fill-1">{issue.priority === 'critical' ? 'error' : 'flag'}</span>{issue.priority}
                                                 </span>
-                                                <span className="text-gray-400 text-xs">•</span>
-                                                <span className="text-gray-500 dark:text-gray-400 text-xs font-medium">#{issue.number}</span>
+                                                <span className="text-gray-500 dark:text-gray-500 text-[11px] font-medium">#{issue.number}</span>
                                             </div>
-                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight mt-1">{issue.title}</h3>
+                                            <h3 className="text-base font-semibold text-slate-900 dark:text-white leading-snug">{issue.title}</h3>
                                         </div>
                                     </div>
-                                    <div className="bg-gray-50 dark:bg-black/20 rounded-lg p-3">
-                                        <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 font-mono text-xs">{issue.description}</p>
+                                    <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-2.5">
+                                        <p className="text-xs text-gray-600 dark:text-gray-200 line-clamp-3 font-mono">{issue.description}</p>
                                     </div>
 
                                     {/* AI Analysis Result Display */}
                                     {analysisResults[issue.id] && (
-                                        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 animate-fade-in">
+                                        <div className="bg-primary/10 border border-primary/25 rounded-lg p-2.5 animate-fade-in">
                                             <div className="flex items-center gap-1 mb-1 text-primary">
-                                                <span className="material-symbols-outlined text-[16px]">smart_toy</span>
-                                                <span className="text-xs font-bold uppercase">Gemini Analysis</span>
+                                                <span className="material-symbols-outlined text-[15px]">smart_toy</span>
+                                                <span className="text-[11px] font-bold uppercase">Gemini Analysis</span>
                                             </div>
-                                            <p className="text-xs text-slate-800 dark:text-gray-200 whitespace-pre-wrap leading-relaxed">{analysisResults[issue.id]}</p>
+                                            <p className="text-[11px] text-slate-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{analysisResults[issue.id]}</p>
                                         </div>
                                     )}
 
                                     <div className="grid grid-cols-4 gap-2 mt-1">
-                                        <button onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-primary text-black font-bold text-xs shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">check_circle</span>Fixed</button>
-                                        <button onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-orange-500 text-white font-bold text-xs shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">warning</span>Open</button>
-                                        <Link to={`/block/${issue.id}`} className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-red-600 text-white font-bold text-xs shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[20px]">block</span>Blocked</Link>
+                                        <button onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
+                                        <button onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>
+                                        <Link to={`/block/${issue.id}`} className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</Link>
                                         <button 
                                             onClick={() => handleAnalyze(issue)} 
                                             disabled={analyzingIds.has(issue.id)}
-                                            className="col-span-1 flex flex-col items-center justify-center gap-1 h-12 rounded-lg bg-blue-600/10 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-600/20 dark:border-blue-500/20 font-bold text-xs active:scale-95 transition-transform disabled:opacity-50"
+                                            className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-blue-600/10 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-600/20 dark:border-blue-500/25 font-semibold text-[11px] active:scale-95 transition-transform disabled:opacity-50"
                                         >
                                             {analyzingIds.has(issue.id) ? (
                                                 <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
                                             ) : (
-                                                <span className="material-symbols-outlined text-[20px]">analytics</span>
+                                                <span className="material-symbols-outlined text-[18px]">analytics</span>
                                             )}
                                             Analyze
                                         </button>

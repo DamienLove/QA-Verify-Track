@@ -6,6 +6,19 @@ let octokit: Octokit | null = null;
 export const githubService = {
   initialize: (token: string) => {
     octokit = new Octokit({ auth: token });
+  }, 
+
+  getIssueComments: async (owner: string, repo: string, issueNumber: number) => {
+    if (!octokit) throw new Error("GitHub service not initialized. Please configure your token.");
+
+    const { data } = await octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      per_page: 100
+    });
+
+    return data;
   },
 
   getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open'): Promise<Issue[]> => {
