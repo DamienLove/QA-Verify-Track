@@ -1,7 +1,16 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.gms.google-services")
+}
+
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(FileInputStream(keystorePropsFile))
 }
 
 android {
@@ -16,9 +25,33 @@ android {
         versionName = "1.0"
     }
 
+    flavorDimensions += "env"
+    productFlavors {
+        create("qa") {
+            dimension = "env"
+            applicationId = "com.qa.verifyandtrack.app"
+        }
+        create("prod") {
+            dimension = "env"
+            applicationId = "com.qaverifyandtrack.app"
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropsFile.exists()) {
+                storeFile = file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+                keyAlias = keystoreProps["keyAlias"] as String
+                keyPassword = keystoreProps["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

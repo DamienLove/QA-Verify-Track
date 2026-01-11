@@ -1,0 +1,40 @@
+QA Verify & Track - Status (2026-01-11)
+Last updated: 2026-01-11 10:06
+
+Latest actions
+- Built QA debug APK: androidApp/app/build/outputs/apk/qa/debug/app-qa-debug.apk
+- Deployed web app to Firebase Hosting: https://qa-verify-and-ttack.web.app
+- Updated release google-services.json for com.qaverifyandtrack.app
+
+Ads (AdMob)
+App ID: ca-app-pub-5327057757821609~8462895987
+- banner:        ca-app-pub-5327057757821609/7756496580
+- interstitch-qa: ca-app-pub-5327057757821609/9560532843
+- app-open-qa:   ca-app-pub-5327057757821609/8359131816
+- native-qa:     ca-app-pub-5327057757821609/2504169908
+
+Android packaging
+- Debug package:   com.qa.verifyandtrack.app (flavor: qa)
+- Release package: com.qaverifyandtrack.app (flavor: prod)
+- Flavors defined in: androidApp/app/build.gradle.kts
+
+Google Services config
+- Debug (qa):   androidApp/app/src/qa/google-services.json
+- Release (prod): androidApp/app/src/prod/google-services.json
+  NOTE: release google-services.json must match com.qaverifyandtrack.app.
+
+Signing / upload cert
+- Upload cert: androidApp/signing/upload_cert.der (gitignored)
+- keystore.properties expected at: androidApp/keystore.properties (gitignored)
+  Keys: storeFile, storePassword, keyAlias, keyPassword
+  Password: provided by user; do not store in repo.
+
+Play Console upload (MCP)
+- MCP jar: C:\Projects\pulselink\secrets\play-store-mcp-all.jar
+- Service account: C:\Projects\pulselink\secrets\service-account-key.json
+- Default track: internal
+
+Pending / next steps
+1) Provide upload keystore path + key alias; populate androidApp/keystore.properties
+2) Build release AAB: ./gradlew bundleProdRelease
+3) Upload AAB to Play internal using Play Store MCP

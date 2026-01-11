@@ -18,6 +18,13 @@ androidApp/build
 androidApp/app/build
 androidApp/gradle-8.7/
 *.iml
+androidApp/keystore.properties
+androidApp/signing/*.jks
+androidApp/signing/*.keystore
+androidApp/signing/*.p12
+androidApp/signing/*.der
+androidApp/signing/*.json
+androidApp/signing/*.jar
 
 # Editor directories and files
 .vscode/*
