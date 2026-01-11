@@ -1,3 +1,5 @@
+https://github.com/DamienLove/QA-Verify-Track/blob/9f730e7b22be606794ab40bf144c14e3402c86fc/androidApp/app/build/outputs/apk/debug/app-debug.apk
+
 
 https://github.com/DamienLove/QA-Verify-Track/blob/main/androidApp%2Fapp%2Fbuild%2Foutputs%2Fapk%2Fdebug%2Fapp-debug.apk
 
