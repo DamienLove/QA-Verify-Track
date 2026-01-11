@@ -22,28 +22,14 @@ import {
 import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 import { Repository } from "../types";
 
-/**
- * Default Firebase configuration (web app) provided by user.
- * Override via Vite env vars (VITE_FIREBASE_*) to swap environments.
- */
-const defaultWebConfig = {
-  apiKey: "AIzaSyAgKnkhu_dcjcbXsl1GVWOXYoY-CmhMwZ4",
-  authDomain: "qa-verify-and-ttack.firebaseapp.com",
-  projectId: "qa-verify-and-ttack",
-  storageBucket: "qa-verify-and-ttack.firebasestorage.app",
-  messagingSenderId: "656737115796",
-  appId: "1:656737115796:web:779252a25a44df70001e81",
-  measurementId: "G-RBKTZGBYV9"
-} as const;
-
 const firebaseConfig: FirebaseOptions = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? defaultWebConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? defaultWebConfig.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? defaultWebConfig.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? defaultWebConfig.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? defaultWebConfig.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? defaultWebConfig.appId,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? defaultWebConfig.measurementId,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
