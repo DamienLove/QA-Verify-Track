@@ -14,19 +14,30 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <!-- Tailwind Configuration -->
+    <style id="theme-variables">
+        :root {
+            --color-primary: #12d622;
+            --color-primary-hover: #0fa61c;
+            --color-background-light: #e8efe8;
+            --color-background-dark: #0b1b0f;
+            --color-surface-dark: #0f1f12;
+            --color-surface-dark-lighter: #132618;
+            --color-input-dark: #152b1a;
+        }
+    </style>
     <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
                     colors: {
-                        "primary": "#12d622",
-                        "primary-hover": "#0fa61c",
-                        "background-light": "#e8efe8",
-                        "background-dark": "#0b1b0f",
-                        "surface-dark": "#0f1f12",
-                        "surface-dark-lighter": "#132618",
-                        "input-dark": "#152b1a",
+                        "primary": "var(--color-primary)",
+                        "primary-hover": "var(--color-primary-hover)",
+                        "background-light": "var(--color-background-light)",
+                        "background-dark": "var(--color-background-dark)",
+                        "surface-dark": "var(--color-surface-dark)",
+                        "surface-dark-lighter": "var(--color-surface-dark-lighter)",
+                        "input-dark": "var(--color-input-dark)",
                         "danger": "#ef4444",
                         "warning": "#f97316",
                         "info": "#3b82f6"
