@@ -5,6 +5,8 @@ import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
+import Todos from './components/Todos';
+import Notes from './components/Notes';
 
 // --- Shared UI Components ---
 
@@ -128,6 +130,7 @@ const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
             </header>
 
             <main className="flex-1 flex flex-col gap-6 p-4">
+                <Todos repos={repos} />
                 {repos.length === 0 ? (
                     <div className="text-center py-20 opacity-60">
                          <span className="material-symbols-outlined text-6xl mb-4">move_to_inbox</span>
@@ -915,6 +918,7 @@ const App = () => {
         <Route path="/block/:id" element={<BlockPromptPage />} />
         <Route path="/conflicts" element={<ConflictPage />} />
       </Routes>
+      <Notes />
     </HashRouter>
   );
 };
