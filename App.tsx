@@ -466,26 +466,31 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             ]);
 
             // Filter out issues that already have status comments for this build number
-            const statusRegex = /\b(open|closed|blocked)\s*v?(\d+)\b/i;
+            const statusRegex = /\b(open|closed|blocked)\s*v?(\d+)\b/gi;
             const issuesWithComments = await Promise.all(
               fetchedIssues.map(async (issue) => {
                 try {
                   const comments = await githubService.getIssueComments(repo.owner, repo.name, issue.number);
-                  // Find the latest status comment and extract its build number
-                  const latestMatch = comments
-                    .map((c: any) => ({ body: c.body || '', created_at: c.created_at }))
-                    .filter((c: any) => statusRegex.test(c.body))
-                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                    [0];
+                  const targetBuild = parseInt((buildNumber || '0').trim(), 10);
 
-                  if (latestMatch) {
-                    const [, , buildStr] = latestMatch.body.match(statusRegex) || [];
-                    const commentBuild = parseInt(buildStr, 10);
-                    const targetBuild = parseInt(buildNumber || '0', 10);
-                    // Hide if the latest status comment is for this build or any higher build
-                    if (!isNaN(commentBuild) && commentBuild >= targetBuild) {
-                      return null;
+                  let matched = false;
+                  let maxBuild = -1;
+                  for (const c of comments) {
+                    const body = c.body || '';
+                    let m;
+                    statusRegex.lastIndex = 0;
+                    while ((m = statusRegex.exec(body)) !== null) {
+                      matched = true;
+                      const b = parseInt(m[2], 10);
+                      if (!isNaN(b)) {
+                        maxBuild = Math.max(maxBuild, b);
+                      }
                     }
+                  }
+
+                  // Hide if any status comment references this build or a higher one
+                  if (matched && maxBuild >= targetBuild) {
+                    return null;
                   }
                   return issue;
                 } catch (err) {
