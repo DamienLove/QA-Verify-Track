@@ -13,6 +13,13 @@ data class AppConfig(
 )
 
 @Keep
+data class GlobalSettings(
+    val globalGithubToken: String? = null,
+    val defaultBranch: String = "main",
+    val theme: String = "light"
+)
+
+@Keep
 data class Repo(
     @DocumentId val id: String = "",
     val owner: String = "",
@@ -20,6 +27,7 @@ data class Repo(
     val displayName: String? = null,
     val apiEndpoint: String? = null,
     val githubToken: String? = null,
+    val useCustomToken: Boolean = false,
     val avatarUrl: String? = null,
     val apps: List<AppConfig> = emptyList(),
     val isConnected: Boolean = true,

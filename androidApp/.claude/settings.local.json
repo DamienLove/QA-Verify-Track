@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue view:*)",
+      "Bash(gh api:*)",
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(git push:*)",
+      "Bash(gh issue close:*)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}
