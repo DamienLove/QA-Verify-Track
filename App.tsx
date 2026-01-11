@@ -72,12 +72,12 @@ const LoginPage = () => {
                     
                     <form onSubmit={handleAuth} className="space-y-4">
                         <div className="space-y-1">
-                            <label className="text-xs uppercase font-bold text-gray-500">Email</label>
-                            <input value={email} onChange={e=>setEmail(e.target.value)} type="email" required className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="qa@acme.inc" />
+                            <label htmlFor="email" className="text-xs uppercase font-bold text-gray-500">Email</label>
+                            <input id="email" value={email} onChange={e=>setEmail(e.target.value)} type="email" required className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="qa@acme.inc" />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs uppercase font-bold text-gray-500">Password</label>
-                            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" required className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="••••••••" />
+                            <label htmlFor="password" className="text-xs uppercase font-bold text-gray-500">Password</label>
+                            <input id="password" value={password} onChange={e=>setPassword(e.target.value)} type="password" required className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="••••••••" />
                         </div>
                         <button disabled={loading} className="w-full bg-primary text-black font-bold h-12 rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50">
                             {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
@@ -122,7 +122,7 @@ const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate max-w-[150px]">{user.email}</p>
                     </div>
                 </div>
-                <Link to="/config" className="flex items-center justify-center size-10 rounded-full bg-white/5 hover:bg-white/10 text-primary border border-primary/20 transition-all">
+                <Link to="/config" aria-label="Add new repository" className="flex items-center justify-center size-10 rounded-full bg-white/5 hover:bg-white/10 text-primary border border-primary/20 transition-all">
                     <span className="material-symbols-outlined font-bold">add_link</span>
                 </Link>
             </header>
@@ -154,7 +154,7 @@ const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
                                         <p className="text-primary text-xs font-bold">Build #{repo.apps[0]?.buildNumber}</p>
                                     </div>
                                 </div>
-                                <Link to={`/dashboard?repo=${repo.id}`} className="flex items-center justify-center size-10 rounded-full bg-gray-100 dark:bg-[#253827] text-primary">
+                                <Link to={`/dashboard?repo=${repo.id}`} aria-label="View repository dashboard" className="flex items-center justify-center size-10 rounded-full bg-gray-100 dark:bg-[#253827] text-primary">
                                     <span className="material-symbols-outlined">arrow_forward</span>
                                 </Link>
                             </div>
@@ -279,7 +279,7 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
             <div className="bg-background-light dark:bg-background-dark min-h-screen pb-safe">
                 <header className="sticky top-0 z-20 flex items-center justify-between p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5">
                     <div className="flex items-center gap-3">
-                        <button onClick={() => navigate(-1)} className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
+                        <button onClick={() => navigate(-1)} aria-label="Go back" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
                             <span className="material-symbols-outlined text-slate-900 dark:text-white">arrow_back</span>
                         </button>
                         <h1 className="text-lg font-bold">Configuration</h1>
@@ -308,7 +308,7 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
         <div className="bg-background-light dark:bg-background-dark min-h-screen pb-safe">
             <header className="sticky top-0 z-20 flex items-center justify-between p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setView('list')} className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
+                    <button onClick={() => setView('list')} aria-label="Close configuration" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
                         <span className="material-symbols-outlined text-slate-900 dark:text-white">close</span>
                     </button>
                     <h1 className="text-lg font-bold">{activeRepoId ? 'Edit Repository' : 'Add Repository'}</h1>
@@ -379,7 +379,7 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
                     
                     {formData.apps?.map((app, idx) => (
                         <div key={idx} className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 space-y-3 relative group">
-                            <button onClick={() => removeApp(idx)} className="absolute top-2 right-2 p-1 rounded hover:bg-red-500/10 text-gray-400 hover:text-red-500">
+                            <button onClick={() => removeApp(idx)} aria-label="Delete app" className="absolute top-2 right-2 p-1 rounded hover:bg-red-500/10 text-gray-400 hover:text-red-500">
                                 <span className="material-symbols-outlined text-lg">delete</span>
                             </button>
                             <div className="grid grid-cols-2 gap-3 pr-6">
@@ -474,7 +474,11 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             const issuesWithComments = await Promise.all(
               fetchedIssues.map(async (issue) => {
                 try {
-                  const comments = await githubService.getIssueComments(repo.owner, repo.name, issue.number);
+                  // Optimization: Skip fetching comments if there are none
+                  const comments = issue.commentsCount > 0
+                    ? await githubService.getIssueComments(repo.owner, repo.name, issue.number, issue.updatedAt)
+                    : [];
+
                   const targetBuild = parseInt((buildNumber || '0').trim(), 10);
 
                   let matched = false;
@@ -619,7 +623,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
         <div className="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden pb-24">
             <header className="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => navigate('/')} className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+                    <button onClick={() => navigate('/')} aria-label="Go back to home" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
                         <span className="material-symbols-outlined text-slate-900 dark:text-white">arrow_back</span>
                     </button>
                     <div>
@@ -643,6 +647,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
+                                    aria-label="Sync with GitHub"
                                     className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
                                 >
                                     <span className="material-symbols-outlined">sync</span>
@@ -650,6 +655,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                 </button>
                                 <button
                                     onClick={() => handleSync(true)}
+                                    aria-label="Sync with Store"
                                     className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
                                 >
                                     <span className="material-symbols-outlined">system_update_alt</span>
@@ -808,7 +814,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                                 )}
                                             </button>
                                         )}
-                                        <button disabled={isProcessing} onClick={() => handleClosePR(pr)} className="px-4 bg-red-500/10 text-red-600 dark:text-red-500 border border-red-500/20 rounded-lg flex items-center justify-center active:scale-[0.98] hover:bg-red-500/20"><span className="material-symbols-outlined text-[20px]">close</span></button>
+                                        <button disabled={isProcessing} onClick={() => handleClosePR(pr)} aria-label="Close pull request" className="px-4 bg-red-500/10 text-red-600 dark:text-red-500 border border-red-500/20 rounded-lg flex items-center justify-center active:scale-[0.98] hover:bg-red-500/20"><span className="material-symbols-outlined text-[20px]">close</span></button>
                                     </div>
                                 </div>
                              )
@@ -816,7 +822,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                     </div>
                 )}
             </main>
-            <Link to={`/quick-issue?repo=${repo?.id}`} className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-[0_4px_16px_rgba(19,236,37,0.4)] active:scale-90 transition-transform hover:scale-105"><span className="material-symbols-outlined text-3xl">add</span></Link>
+            <Link to={`/quick-issue?repo=${repo?.id}`} aria-label="Create new issue" className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-[0_4px_16px_rgba(19,236,37,0.4)] active:scale-90 transition-transform hover:scale-105"><span className="material-symbols-outlined text-3xl">add</span></Link>
             <BottomNav />
         </div>
     );
@@ -856,7 +862,7 @@ const QuickIssuePage = ({ repos }: { repos: Repository[] }) => {
             <div onClick={() => navigate(-1)} className="absolute inset-0 bg-black/60 backdrop-blur-sm z-10"></div>
             <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col h-[90vh] bg-surface-dark rounded-t-[32px] shadow-2xl border-t border-white/10 animate-slide-up">
                  <div className="w-full flex justify-center pt-4 pb-2"><div className="w-14 h-1.5 bg-gray-600/40 rounded-full"></div></div>
-                 <div className="px-6 py-2 flex justify-between"><h2 className="text-white text-2xl font-bold">New Issue</h2><button onClick={() => navigate(-1)} className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white"><span className="material-symbols-outlined">close</span></button></div>
+                 <div className="px-6 py-2 flex justify-between"><h2 className="text-white text-2xl font-bold">New Issue</h2><button onClick={() => navigate(-1)} aria-label="Close" className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white"><span className="material-symbols-outlined">close</span></button></div>
                  <div className="p-6 space-y-4">
                       <input value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg" placeholder="Title" />
                       <textarea value={desc} onChange={e=>setDesc(e.target.value)} className="w-full bg-input-dark rounded-xl p-4 text-white min-h-[200px]" placeholder="Description"></textarea>

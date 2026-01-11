@@ -40,6 +40,8 @@ export const MOCK_ISSUES: Issue[] = [
     labels: ['bug', 'login'],
     createdAt: '2h ago',
     reporter: { name: 'Alex', avatar: 'https://picsum.photos/40/40?random=1' },
+    updatedAt: '2h ago',
+    commentsCount: 0,
     comments: []
   },
   {
@@ -53,6 +55,8 @@ export const MOCK_ISSUES: Issue[] = [
     labels: ['ui/ux'],
     createdAt: '5h ago',
     reporter: { name: 'Sarah', avatar: 'https://picsum.photos/40/40?random=2' },
+    updatedAt: '5h ago',
+    commentsCount: 0,
     comments: []
   },
   {
@@ -66,6 +70,8 @@ export const MOCK_ISSUES: Issue[] = [
     labels: ['feature'],
     createdAt: '1d ago',
     reporter: { name: 'Jim', avatar: 'https://picsum.photos/40/40?random=3' },
+    updatedAt: '1d ago',
+    commentsCount: 0,
     comments: []
   }
 ];

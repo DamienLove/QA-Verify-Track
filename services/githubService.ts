@@ -2,6 +2,7 @@ import { Octokit } from "@octokit/rest";
 import { Issue, PullRequest } from '../types';
 
 let octokit: Octokit | null = null;
+const commentsCache = new Map<string, { timestamp: string; data: any[] }>();
 
 const mapPriority = (labels: any[]): Issue['priority'] => {
   const names = labels.map((l: any) => (l.name || '').toLowerCase());
@@ -17,8 +18,18 @@ export const githubService = {
     octokit = new Octokit({ auth: token });
   }, 
 
-  getIssueComments: async (owner: string, repo: string, issueNumber: number) => {
+  getIssueComments: async (owner: string, repo: string, issueNumber: number, lastUpdated?: string) => {
     if (!octokit) throw new Error("GitHub service not initialized. Please configure your token.");
+
+    const cacheKey = `${owner}/${repo}/${issueNumber}`;
+
+    // Check cache if lastUpdated is provided
+    if (lastUpdated) {
+      const cached = commentsCache.get(cacheKey);
+      if (cached && cached.timestamp === lastUpdated) {
+        return cached.data;
+      }
+    }
 
     const { data } = await octokit.issues.listComments({
       owner,
@@ -26,6 +37,14 @@ export const githubService = {
       issue_number: issueNumber,
       per_page: 100
     });
+
+    // Update cache
+    if (lastUpdated) {
+      if (commentsCache.size > 500) {
+        commentsCache.clear(); // Simple eviction strategy to prevent memory leaks
+      }
+      commentsCache.set(cacheKey, { timestamp: lastUpdated, data });
+    }
 
     return data;
   },
@@ -56,6 +75,8 @@ export const githubService = {
           labels: i.labels.map((l: any) => l.name),
           type: i.labels.find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui')?.name || 'bug',
           createdAt: i.created_at,
+          updatedAt: i.updated_at,
+          commentsCount: i.comments,
           reporter: {
             name: i.user.login,
             avatar: i.user.avatar_url
