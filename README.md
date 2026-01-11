@@ -1,6 +1,6 @@
-#Download Latest APK#
-##[![Publish Debug APK](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml/badge.svg?branch=main)](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml)##
-##[QA Verify and Track Alpa](https://github.com/DamienLove/QA-Verify-Track/releases/download/Alpha/app-debug.apk)##
+# Download Latest APK
+
+ [![Publish Debug APK](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml/badge.svg?branch=main)](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml) [Download Alpha](https://github.com/DamienLove/QA-Verify-Track/releases/download/Alpha/app-debug.apk)
 
 ## QA Verify & Track — Web + Android
 
