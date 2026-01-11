@@ -30,6 +30,8 @@ export interface Issue {
   labels: string[];
   type: 'bug' | 'feature' | 'ui';
   createdAt: string;
+  updatedAt: string;
+  commentsCount: number;
   reporter: {
     name: string;
     avatar: string;

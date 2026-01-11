@@ -474,7 +474,11 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             const issuesWithComments = await Promise.all(
               fetchedIssues.map(async (issue) => {
                 try {
-                  const comments = await githubService.getIssueComments(repo.owner, repo.name, issue.number);
+                  // Optimization: Skip fetching comments if there are none
+                  const comments = issue.commentsCount > 0
+                    ? await githubService.getIssueComments(repo.owner, repo.name, issue.number, issue.updatedAt)
+                    : [];
+
                   const targetBuild = parseInt((buildNumber || '0').trim(), 10);
 
                   let matched = false;
