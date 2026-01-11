@@ -192,7 +192,39 @@ export const githubService = {
 
   updatePR: async (owner: string, repo: string, pullNumber: number, updates: any) => {
       if (!octokit) throw new Error("GitHub service not initialized");
-      // Note: Implementation for draft status update if needed
+
+      const { isDraft, ...restUpdates } = updates;
+
+      if (isDraft !== undefined) {
+          const { data: pr } = await octokit.pulls.get({
+              owner,
+              repo,
+              pull_number: pullNumber
+          });
+
+          // Toggle draft status using GraphQL mutations
+          const mutation = isDraft
+              ? `mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id}) { clientMutationId } }`
+              : `mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { clientMutationId } }`;
+
+          await octokit.request('POST /graphql', {
+              query: mutation,
+              variables: {
+                  id: pr.node_id
+              }
+          });
+      }
+
+      // Apply other REST updates if any
+      if (Object.keys(restUpdates).length > 0) {
+          await octokit.pulls.update({
+              owner,
+              repo,
+              pull_number: pullNumber,
+              ...restUpdates
+          });
+      }
+
       return true;
   },
 
