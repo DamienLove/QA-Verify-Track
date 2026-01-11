@@ -232,5 +232,13 @@ export const githubService = {
           console.error("Auto-resolve (update branch) failed", e);
           return false;
       }
+  },
+
+  getOpenIssueCount: async (owner: string, repo: string): Promise<number> => {
+    if (!octokit) throw new Error("GitHub service not initialized");
+    const response = await octokit.search.issuesAndPullRequests({
+      q: `repo:${owner}/${repo} is:issue is:open`,
+    });
+    return response.data.total_count;
   }
 };
