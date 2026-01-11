@@ -450,13 +450,14 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
         }
     }, [repo]);
 
-    // fetchStoreBuild: when true, we try to auto-populate build number (stubbed) before syncing
+    // fetchStoreBuild: when true, try to auto-populate build number from stored app config (no external store fetch to avoid CORS)
     const handleSync = async (fetchStoreBuild: boolean = false) => {
         setLoading(true);
         if (fetchStoreBuild && repo?.apps[0]?.playStoreUrl) {
-             // Simulate store build fetch/increment (placeholder until real Play Store API)
-             const nextBuild = (parseInt(buildNumber) + 1).toString();
-             setBuildNumber(nextBuild);
+             const storedBuild = repo.apps[0]?.buildNumber;
+             if (storedBuild) {
+                 setBuildNumber(storedBuild.toString());
+             }
         }
 
         try {
@@ -466,7 +467,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             ]);
 
             // Filter out issues that already have status comments for this build number
-            const statusRegex = /\b(open|closed|blocked)\s*v?(\d+)\b/gi;
+            const statusRegex = /\b(open|closed|blocked)\s*v?\s*(\d+)\b/gi;
             const issuesWithComments = await Promise.all(
               fetchedIssues.map(async (issue) => {
                 try {
@@ -679,7 +680,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                         ) : (
                             issues.map(issue => (
                                 <article key={issue.id} className="relative flex flex-col gap-2 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-3 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
-                                    <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start justify-between gap-2.5">
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
                                                 <span className={`font-bold text-xs tracking-tight flex items-center gap-1 uppercase ${issue.priority === 'critical' ? 'text-red-500' : issue.priority === 'high' ? 'text-orange-500' : 'text-blue-400'}`}>
@@ -687,11 +688,13 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                                 </span>
                                                 <span className="text-gray-500 dark:text-gray-500 text-[11px] font-medium">#{issue.number}</span>
                                             </div>
-                                            <h3 className="text-base font-semibold text-slate-900 dark:text-white leading-snug">{issue.title}</h3>
+                                            <a href={`https://github.com/${repo.owner}/${repo.name}/issues/${issue.number}`} target="_blank" rel="noopener noreferrer" className="text-base font-semibold text-slate-900 dark:text-white leading-snug hover:text-primary">
+                                                {issue.title}
+                                            </a>
                                         </div>
                                     </div>
-                                    <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-2.5">
-                                        <p className="text-xs text-gray-600 dark:text-gray-200 line-clamp-3 font-mono">{issue.description}</p>
+                                    <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-2">
+                                        <p className="text-xs text-gray-600 dark:text-gray-200 line-clamp-3 font-mono leading-snug">{issue.description}</p>
                                     </div>
 
                                     {/* AI Analysis Result Display */}
