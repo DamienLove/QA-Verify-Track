@@ -1,10 +1,12 @@
 QA Verify & Track - Status (2026-01-11)
-Last updated: 2026-01-11 10:06
+Last updated: 2026-01-11 10:29
 
 Latest actions
 - Built QA debug APK: androidApp/app/build/outputs/apk/qa/debug/app-qa-debug.apk
 - Deployed web app to Firebase Hosting: https://qa-verify-and-ttack.web.app
 - Updated release google-services.json for com.qaverifyandtrack.app
+- Generated upload keystore: androidApp/signing/upload.jks (alias: upload)
+- Built release AAB: androidApp/app/build/outputs/bundle/prodRelease/app-prod-release.aab
 
 Ads (AdMob)
 App ID: ca-app-pub-5327057757821609~8462895987
@@ -25,6 +27,7 @@ Google Services config
 
 Signing / upload cert
 - Upload cert: androidApp/signing/upload_cert.der (gitignored)
+- Upload keystore: androidApp/signing/upload.jks (gitignored, alias: upload)
 - keystore.properties expected at: androidApp/keystore.properties (gitignored)
   Keys: storeFile, storePassword, keyAlias, keyPassword
   Password: provided by user; do not store in repo.
@@ -35,6 +38,4 @@ Play Console upload (MCP)
 - Default track: internal
 
 Pending / next steps
-1) Provide upload keystore path + key alias; populate androidApp/keystore.properties
-2) Build release AAB: ./gradlew bundleProdRelease
-3) Upload AAB to Play internal using Play Store MCP
+1) Upload AAB to Play internal using Play Store MCP
