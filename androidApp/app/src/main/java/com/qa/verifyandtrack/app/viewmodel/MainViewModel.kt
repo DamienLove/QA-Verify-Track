@@ -63,46 +63,6 @@ class MainViewModel(
         service.signInWithGoogle(account)
     }
 
-    fun saveSampleRepos() {
-        val userId = _uiState.value.user?.uid ?: return
-        viewModelScope.launch {
-            runCatching {
-                service.saveRepos(
-                    userId,
-                    listOf(
-                        Repo(
-                            id = "mobile-app",
-                            owner = "acme",
-                            name = "mobile-app",
-                            displayName = "Mobile App",
-                            apps = listOf(AppConfig(id = "android", name = "Android", platform = "android", buildNumber = "42")),
-                            isConnected = true
-                        ),
-                        Repo(
-                            id = "web-dashboard",
-                            owner = "acme",
-                            name = "web-dashboard",
-                            displayName = "Web Dashboard",
-                            apps = listOf(AppConfig(id = "web", name = "Web", platform = "web", buildNumber = "12")),
-                            isConnected = true
-                        ),
-                        Repo(
-                            id = "qa-scripts",
-                            owner = "acme",
-                            name = "qa-scripts",
-                            displayName = "QA Scripts",
-                            branch = "develop",
-                            apps = listOf(AppConfig(id = "tools", name = "Automation", platform = "web", buildNumber = "3")),
-                            isConnected = true
-                        )
-                    )
-                )
-            }.onFailure { error ->
-                _uiState.update { it.copy(message = error.message) }
-            }
-        }
-    }
-
     fun signOut() = viewModelScope.launch {
         runCatching { service.signOut() }
     }
