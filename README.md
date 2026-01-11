@@ -1,11 +1,4 @@
-https://github.com/DamienLove/QA-Verify-Track/blob/9f730e7b22be606794ab40bf144c14e3402c86fc/androidApp/app/build/outputs/apk/debug/app-debug.apk
-
-
-https://github.com/DamienLove/QA-Verify-Track/blob/main/androidApp%2Fapp%2Fbuild%2Foutputs%2Fapk%2Fdebug%2Fapp-debug.apk
-
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+[![Publish Debug APK](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml/badge.svg?branch=main)](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml)
 
 ## QA Verify & Track — Web + Android
 
