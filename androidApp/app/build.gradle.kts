@@ -15,12 +15,12 @@ if (keystorePropsFile.exists()) {
 
 android {
     namespace = "com.qa.verifyandtrack.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.qa.verifyandtrack.app"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
     }

@@ -1,9 +1,9 @@
 QA Verify & Track - Status (2026-01-11)
-Last updated: 2026-01-11 10:48
+Last updated: 2026-01-11 10:57
 
 Latest actions
 - Built QA debug APK: androidApp/app/build/outputs/apk/qa/debug/app-qa-debug.apk
-- Rebuilt release AAB (v1): androidApp/app/build/outputs/bundle/prodRelease/app-prod-release.aab
+- Rebuilt release AAB (v1, targetSdk 35): androidApp/app/build/outputs/bundle/prodRelease/app-prod-release.aab
 - Deployed web app (new icon) to Firebase Hosting: https://qa-verify-and-ttack.web.app
 - Updated release google-services.json for com.qaverifyandtrack.app
 - Generated upload keystore: androidApp/signing/upload.jks (alias: upload)
