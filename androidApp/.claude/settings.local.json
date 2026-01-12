@@ -9,7 +9,8 @@
       "Bash(./gradlew clean:*)",
       "Bash(git push:*)",
       "Bash(gh issue close:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(cat:*)"
     ]
   }
 }

@@ -1,0 +1,404 @@
+package com.qa.verifyandtrack.app.data.service
+
+import com.google.gson.annotations.SerializedName
+import com.qa.verifyandtrack.app.data.model.Comment
+import com.qa.verifyandtrack.app.data.model.Issue
+import com.qa.verifyandtrack.app.data.model.PullRequest
+import com.qa.verifyandtrack.app.data.model.PullRequestDetail
+import com.qa.verifyandtrack.app.data.model.Reporter
+import com.qa.verifyandtrack.app.data.model.Author
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.Headers
+import retrofit2.http.PATCH
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
+import retrofit2.http.Query
+
+private const val GITHUB_BASE_URL = "https://api.github.com/"
+
+class GitHubService {
+    @Volatile
+    private var authToken: String? = null
+
+    private val authInterceptor = Interceptor { chain ->
+        val requestBuilder = chain.request().newBuilder()
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "QA-Verify-Track-Android")
+        val token = authToken
+        if (!token.isNullOrBlank()) {
+            requestBuilder.header("Authorization", "token $token")
+        }
+        chain.proceed(requestBuilder.build())
+    }
+
+    private val api: GitHubApi
+
+    init {
+        val logger = HttpLoggingInterceptor()
+        logger.level = HttpLoggingInterceptor.Level.BASIC
+        val client = OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(logger)
+            .build()
+
+        val retrofit = Retrofit.Builder()
+            .baseUrl(GITHUB_BASE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+
+        api = retrofit.create(GitHubApi::class.java)
+    }
+
+    fun initialize(token: String) {
+        authToken = token
+    }
+
+    private fun requireToken() {
+        if (authToken.isNullOrBlank()) {
+            throw IllegalStateException("GitHub service not initialized. Configure your token first.")
+        }
+    }
+
+    suspend fun getIssueComments(owner: String, repo: String, issueNumber: Int, lastUpdated: String? = null): List<Comment> {
+        requireToken()
+        val cacheKey = "$owner/$repo/$issueNumber"
+        if (lastUpdated != null) {
+            val cached = commentsCache[cacheKey]
+            if (cached != null && cached.timestamp == lastUpdated) {
+                return cached.data
+            }
+        }
+        val response = api.listIssueComments(owner, repo, issueNumber)
+        val comments = response.map { Comment(id = it.id.toString(), text = it.body.orEmpty()) }
+        if (lastUpdated != null) {
+            if (commentsCache.size > 500) {
+                commentsCache.clear()
+            }
+            commentsCache[cacheKey] = CachedComments(lastUpdated, comments)
+        }
+        return comments
+    }
+
+    suspend fun getIssues(owner: String, repo: String, state: String = "open"): List<Issue> {
+        requireToken()
+        return try {
+            api.listIssues(owner, repo, state)
+                .filter { it.pullRequest == null }
+                .map { mapIssue(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getPullRequests(owner: String, repo: String): List<PullRequest> {
+        requireToken()
+        return try {
+            api.listPulls(owner, repo)
+                .map { mapPullRequest(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getPullRequest(owner: String, repo: String, pullNumber: Int): PullRequestDetail {
+        requireToken()
+        val response = api.getPull(owner, repo, pullNumber)
+        return PullRequestDetail(
+            id = response.id ?: 0,
+            number = response.number ?: pullNumber,
+            title = response.title.orEmpty(),
+            mergeable = response.mergeable,
+            mergeableState = response.mergeableState,
+            isDraft = response.draft ?: false,
+            changedFiles = response.changedFiles ?: 0
+        )
+    }
+
+    suspend fun createIssue(owner: String, repo: String, title: String, body: String, labels: List<String>): Issue {
+        requireToken()
+        val response = api.createIssue(owner, repo, CreateIssueRequest(title, body, labels))
+        return mapIssue(response)
+    }
+
+    suspend fun addComment(owner: String, repo: String, issueNumber: Int, body: String): Boolean {
+        requireToken()
+        api.createComment(owner, repo, issueNumber, CreateCommentRequest(body))
+        return true
+    }
+
+    suspend fun updateIssueStatus(owner: String, repo: String, issueNumber: Int, state: String): Boolean {
+        requireToken()
+        api.updateIssue(owner, repo, issueNumber, UpdateIssueRequest(state))
+        return true
+    }
+
+    suspend fun mergePR(owner: String, repo: String, pullNumber: Int): Boolean {
+        requireToken()
+        api.mergePull(owner, repo, pullNumber)
+        return true
+    }
+
+    suspend fun denyPR(owner: String, repo: String, pullNumber: Int): Boolean {
+        requireToken()
+        api.updatePull(owner, repo, pullNumber, UpdatePullRequest(state = "closed"))
+        return true
+    }
+
+    suspend fun updatePR(owner: String, repo: String, pullNumber: Int, updates: Map<String, Any>): Boolean {
+        requireToken()
+        api.updatePullRaw(owner, repo, pullNumber, updates)
+        return true
+    }
+
+    suspend fun updateBranch(owner: String, repo: String, pullNumber: Int): Boolean {
+        requireToken()
+        return try {
+            api.updateBranch(owner, repo, pullNumber)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun getOpenIssueCount(owner: String, repo: String): Int {
+        requireToken()
+        val response = api.searchIssues("repo:$owner/$repo is:issue is:open")
+        return response.totalCount ?: 0
+    }
+
+    private fun mapIssue(issue: IssueResponse): Issue {
+        val labels = issue.labels?.mapNotNull { it.name } ?: emptyList()
+        val priority = mapPriority(labels)
+        val type = labels.firstOrNull { label ->
+            val normalized = label.lowercase()
+            normalized == "bug" || normalized == "feature" || normalized == "ui"
+        } ?: "bug"
+        return Issue(
+            id = issue.id ?: 0,
+            number = issue.number ?: 0,
+            title = issue.title.orEmpty(),
+            description = issue.body.orEmpty(),
+            state = issue.state.orEmpty(),
+            priority = priority,
+            labels = labels,
+            type = type,
+            createdAt = issue.createdAt.orEmpty(),
+            updatedAt = issue.updatedAt.orEmpty(),
+            commentsCount = issue.comments ?: 0,
+            reporter = Reporter(
+                name = issue.user?.login.orEmpty(),
+                avatar = issue.user?.avatarUrl.orEmpty()
+            ),
+            comments = emptyList()
+        )
+    }
+
+    private fun mapPullRequest(pr: PullRequestResponse): PullRequest {
+        return PullRequest(
+            id = pr.id ?: 0,
+            number = pr.number ?: 0,
+            title = pr.title.orEmpty(),
+            branch = pr.head?.ref.orEmpty(),
+            targetBranch = pr.base?.ref.orEmpty(),
+            author = Author(
+                name = pr.user?.login.orEmpty(),
+                avatar = pr.user?.avatarUrl.orEmpty()
+            ),
+            hasConflicts = false,
+            isDraft = pr.draft ?: false,
+            status = if (pr.draft == true) "draft" else "open",
+            filesChanged = 0
+        )
+    }
+
+    private fun mapPriority(labels: List<String>): String {
+        val names = labels.map { it.lowercase() }
+        return when {
+            names.any { it == "critical" || it.contains("p0") || it.contains("sev: critical") || it.contains("severity: critical") } -> "critical"
+            names.any { it == "high" || it.contains("p1") || it.contains("priority: high") || it.contains("severity: high") } -> "high"
+            names.any { it == "medium" || it.contains("p2") || it.contains("priority: medium") || it.contains("severity: medium") } -> "medium"
+            names.any { it == "low" || it.contains("p3") || it.contains("priority: low") || it.contains("severity: low") || it.contains("minor") } -> "low"
+            else -> "medium"
+        }
+    }
+
+    private data class CachedComments(val timestamp: String, val data: List<Comment>)
+
+    private val commentsCache: MutableMap<String, CachedComments> = mutableMapOf()
+}
+
+private interface GitHubApi {
+    @GET("repos/{owner}/{repo}/issues")
+    suspend fun listIssues(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Query("state") state: String,
+        @Query("sort") sort: String = "updated",
+        @Query("direction") direction: String = "desc",
+        @Query("per_page") perPage: Int = 50
+    ): List<IssueResponse>
+
+    @GET("repos/{owner}/{repo}/issues/{issue_number}/comments")
+    suspend fun listIssueComments(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("issue_number") issueNumber: Int
+    ): List<CommentResponse>
+
+    @GET("repos/{owner}/{repo}/pulls")
+    suspend fun listPulls(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Query("state") state: String = "open",
+        @Query("sort") sort: String = "updated",
+        @Query("direction") direction: String = "desc"
+    ): List<PullRequestResponse>
+
+    @GET("repos/{owner}/{repo}/pulls/{pull_number}")
+    suspend fun getPull(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int
+    ): PullRequestDetailResponse
+
+    @POST("repos/{owner}/{repo}/issues")
+    suspend fun createIssue(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Body request: CreateIssueRequest
+    ): IssueResponse
+
+    @POST("repos/{owner}/{repo}/issues/{issue_number}/comments")
+    suspend fun createComment(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("issue_number") issueNumber: Int,
+        @Body request: CreateCommentRequest
+    ): CommentResponse
+
+    @PATCH("repos/{owner}/{repo}/issues/{issue_number}")
+    suspend fun updateIssue(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("issue_number") issueNumber: Int,
+        @Body request: UpdateIssueRequest
+    ): IssueResponse
+
+    @PUT("repos/{owner}/{repo}/pulls/{pull_number}/merge")
+    suspend fun mergePull(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int
+    ): Response<Unit>
+
+    @PATCH("repos/{owner}/{repo}/pulls/{pull_number}")
+    suspend fun updatePull(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int,
+        @Body request: UpdatePullRequest
+    ): PullRequestDetailResponse
+
+    @PATCH("repos/{owner}/{repo}/pulls/{pull_number}")
+    suspend fun updatePullRaw(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int,
+        @Body updates: Map<String, Any>
+    ): Response<Unit>
+
+    @PUT("repos/{owner}/{repo}/pulls/{pull_number}/update-branch")
+    @Headers("Accept: application/vnd.github+json")
+    suspend fun updateBranch(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int
+    ): Response<Unit>
+
+    @GET("search/issues")
+    suspend fun searchIssues(@Query("q") query: String): SearchIssuesResponse
+}
+
+private data class LabelResponse(
+    val name: String? = null
+)
+
+private data class UserResponse(
+    val login: String? = null,
+    @SerializedName("avatar_url") val avatarUrl: String? = null
+)
+
+private data class IssueResponse(
+    val id: Long? = null,
+    val number: Int? = null,
+    val title: String? = null,
+    @SerializedName("body") val body: String? = null,
+    val state: String? = null,
+    val labels: List<LabelResponse>? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null,
+    @SerializedName("comments") val comments: Int? = null,
+    val user: UserResponse? = null,
+    @SerializedName("pull_request") val pullRequest: Any? = null
+)
+
+private data class PullRefResponse(
+    val ref: String? = null
+)
+
+private data class PullRequestResponse(
+    val id: Long? = null,
+    val number: Int? = null,
+    val title: String? = null,
+    val head: PullRefResponse? = null,
+    val base: PullRefResponse? = null,
+    val user: UserResponse? = null,
+    val draft: Boolean? = null
+)
+
+private data class PullRequestDetailResponse(
+    val id: Long? = null,
+    val number: Int? = null,
+    val title: String? = null,
+    val mergeable: Boolean? = null,
+    @SerializedName("mergeable_state") val mergeableState: String? = null,
+    val draft: Boolean? = null,
+    @SerializedName("changed_files") val changedFiles: Int? = null
+)
+
+private data class CommentResponse(
+    val id: Long? = null,
+    @SerializedName("body") val body: String? = null
+)
+
+private data class SearchIssuesResponse(
+    @SerializedName("total_count") val totalCount: Int? = null
+)
+
+private data class CreateIssueRequest(
+    val title: String,
+    val body: String,
+    val labels: List<String>
+)
+
+private data class CreateCommentRequest(
+    val body: String
+)
+
+private data class UpdateIssueRequest(
+    val state: String
+)
+
+private data class UpdatePullRequest(
+    val state: String? = null,
+    val draft: Boolean? = null
+)
