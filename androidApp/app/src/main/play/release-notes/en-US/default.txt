@@ -1,0 +1,5 @@
+v3.0 Release
+- UI updated to Material 3 with fixed icon imports.
+- Resolved Ads/Analytics manifest merger conflicts.
+- Enhanced AI service configuration for bug analysis.
+- Codebase cleanup (removed legacy App.kt).

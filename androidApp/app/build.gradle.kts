@@ -6,6 +6,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("kotlin-parcelize")
     id("com.google.gms.google-services")
+    id("com.github.triplet.play") version "3.9.1"
+}
+
+play {
+    serviceAccountCredentials.set(file("../signing/service-account-key.json"))
+    defaultToAppBundles.set(true)
+    track.set("internal")
+    resolutionStrategy.set(com.github.triplet.gradle.androidpublisher.ResolutionStrategy.AUTO)
 }
 
 val keystorePropsFile = rootProject.file("keystore.properties")
