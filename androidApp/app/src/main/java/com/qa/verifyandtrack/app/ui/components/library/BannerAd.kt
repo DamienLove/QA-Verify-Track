@@ -24,7 +24,7 @@ fun BannerAd(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth(),
         factory = { ctx ->
             AdView(ctx).apply {
-                adSize = AdSize.BANNER
+                setAdSize(AdSize.BANNER)
                 adUnitId = BuildConfig.ADMOB_BANNER_ID
 
                 adListener = object : AdListener() {

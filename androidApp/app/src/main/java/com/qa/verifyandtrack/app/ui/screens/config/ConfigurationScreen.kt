@@ -22,10 +22,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.icons.Icons
-import androidx.compose.material3.icons.filled.Add
-import androidx.compose.material3.icons.filled.Delete
-import androidx.compose.material3.icons.filled.Edit
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -58,7 +59,7 @@ fun ConfigurationScreen(navController: NavHostController, viewModel: ConfigViewM
                 editingRepo = null
                 showRepoDialog = true
             }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add repo")
+                Icon(Icons.Rounded.Add, contentDescription = "Add repo")
             }
         }
     ) { padding ->
@@ -130,10 +131,10 @@ private fun RepoCard(
                 }
                 Row {
                     IconButton(onClick = onEdit) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit")
+                        Icon(Icons.Rounded.Edit, contentDescription = "Edit")
                     }
                     IconButton(onClick = onDelete) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        Icon(Icons.Rounded.Delete, contentDescription = "Delete")
                     }
                 }
             }

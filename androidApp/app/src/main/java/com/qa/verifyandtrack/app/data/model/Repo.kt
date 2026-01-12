@@ -4,15 +4,6 @@ import androidx.annotation.Keep
 import com.google.firebase.firestore.DocumentId
 
 @Keep
-data class AppConfig(
-    val id: String = "",
-    val name: String = "",
-    val platform: String = "android",
-    val playStoreUrl: String? = null,
-    val buildNumber: String = "1"
-)
-
-@Keep
 data class GlobalSettings(
     val globalGithubToken: String? = null,
     val defaultBranch: String = "main",

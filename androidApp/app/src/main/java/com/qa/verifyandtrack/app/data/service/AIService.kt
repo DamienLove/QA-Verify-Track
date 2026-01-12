@@ -1,7 +1,7 @@
 package com.qa.verifyandtrack.app.data.service
 
 import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.GenerationConfig
+import com.google.ai.client.generativeai.type.generationConfig
 import com.qa.verifyandtrack.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,7 +21,9 @@ class AIService {
             val model = GenerativeModel(
                 modelName = "gemini-1.5-flash",
                 apiKey = apiKey,
-                generationConfig = GenerationConfig(temperature = 0.2f)
+                generationConfig = generationConfig {
+                    temperature = 0.2f
+                }
             )
             val response = model.generateContent(prompt)
             response.text ?: "No analysis available."

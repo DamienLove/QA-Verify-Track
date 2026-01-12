@@ -66,7 +66,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun QAVerifyTheme(
+fun QATheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {

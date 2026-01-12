@@ -14,12 +14,12 @@ import com.qa.verifyandtrack.app.ui.components.Notes
 import com.qa.verifyandtrack.app.ui.navigation.QAAppNavHost
 import com.qa.verifyandtrack.app.ui.navigation.Screen
 import com.qa.verifyandtrack.app.ui.navigation.shouldShowBottomNav
-import com.qa.verifyandtrack.app.ui.theme.QAVerifyTheme
+import com.qa.verifyandtrack.app.ui.theme.QATheme
 import com.qa.verifyandtrack.app.ui.viewmodel.AuthViewModel
 
 @Composable
 fun QAApp() {
-    QAVerifyTheme {
+    QATheme {
         val navController = rememberNavController()
         val authViewModel: AuthViewModel = viewModel()
         val currentUser by authViewModel.currentUser.collectAsState()
