@@ -1,5 +1,5 @@
-v3.0 Release
-- UI updated to Material 3 with fixed icon imports.
-- Resolved Ads/Analytics manifest merger conflicts.
-- Enhanced AI service configuration for bug analysis.
-- Codebase cleanup (removed legacy App.kt).
+v3.1 Release
+- Added manual build number entry on Dashboard.
+- Improved build selection with dropdown history.
+- Fixed Dashboard UI to ensure issue list is visible.
+- Ensure app works fully standalone without webapp.

@@ -40,6 +40,14 @@ import com.qa.verifyandtrack.app.ui.components.PRCard
 import com.qa.verifyandtrack.app.ui.viewmodel.DashboardTab
 import com.qa.verifyandtrack.app.ui.viewmodel.DashboardViewModel
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.Alignment
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel: DashboardViewModel = viewModel()) {
@@ -59,7 +67,14 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(repo?.displayLabel ?: "Dashboard") })
+            TopAppBar(
+                title = { Text(repo?.displayLabel ?: "Dashboard") },
+                actions = {
+                    IconButton(onClick = { viewModel.syncGitHub() }) {
+                        Icon(Icons.Filled.Sync, contentDescription = "Sync")
+                    }
+                }
+            )
         }
     ) { padding ->
         Column(
@@ -68,15 +83,26 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { viewModel.syncGitHub() }) {
-                    Text("Sync")
-                }
-                Button(onClick = { buildMenuExpanded = true }) {
-                    Text(selectedBuild ?: "All Builds")
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = selectedBuild ?: "",
+                    onValueChange = { viewModel.selectBuild(it) },
+                    label = { Text("Target Build") },
+                    modifier = Modifier.weight(1f),
+                    trailingIcon = {
+                        IconButton(onClick = { buildMenuExpanded = true }) {
+                            Icon(Icons.Filled.ArrowDropDown, "Builds")
+                        }
+                    },
+                    singleLine = true
+                )
+                
                 DropdownMenu(expanded = buildMenuExpanded, onDismissRequest = { buildMenuExpanded = false }) {
-                    DropdownMenuItem(text = { Text("All Builds") }, onClick = {
+                    DropdownMenuItem(text = { Text("Clear") }, onClick = {
                         viewModel.selectBuild(null)
                         buildMenuExpanded = false
                     })
@@ -88,17 +114,19 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                     }
                 }
             }
+            
             Spacer(modifier = Modifier.height(16.dp))
+            
             TabRow(selectedTabIndex = if (activeTab == DashboardTab.Issues) 0 else 1) {
                 Tab(
                     selected = activeTab == DashboardTab.Issues,
                     onClick = { viewModel.setActiveTab(DashboardTab.Issues) },
-                    text = { Text("Issues") }
+                    text = { Text("Issues (${issues.size})") }
                 )
                 Tab(
                     selected = activeTab == DashboardTab.PullRequests,
                     onClick = { viewModel.setActiveTab(DashboardTab.PullRequests) },
-                    text = { Text("Pull Requests") }
+                    text = { Text("PRs (${pullRequests.size})") }
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -114,7 +142,7 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                             issues.filter { it.description.contains(selectedBuild.orEmpty(), ignoreCase = true) }
                         }
                         if (filtered.isEmpty()) {
-                            EmptyState("No issues found.")
+                            EmptyState(if (issues.isEmpty()) "No open issues found." else "No issues match this build.")
                         } else {
                             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(filtered) { issue ->
