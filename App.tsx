@@ -4,6 +4,7 @@ import { Repository, AppConfig, Issue, PullRequest } from './types';
 import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
+import { themeService, themes } from './services/themeService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Todos from './components/Todos';
 import Notes from './components/Notes';
@@ -62,8 +63,8 @@ const LoginPage = () => {
         <div className="min-h-screen bg-background-dark flex items-center justify-center p-6">
             <div className="w-full max-w-sm space-y-8 animate-fade-in">
                 <div className="text-center space-y-2">
-                    <div className="inline-flex items-center justify-center size-16 rounded-2xl bg-primary/20 text-primary mb-4">
-                        <span className="material-symbols-outlined text-4xl">bug_report</span>
+                    <div className="inline-flex items-center justify-center size-16 rounded-2xl bg-primary/20 text-primary mb-4 shadow-[0_0_15px_var(--color-primary)]">
+                        <span className="material-symbols-outlined text-4xl">monitor_heart</span>
                     </div>
                     <h1 className="text-3xl font-bold text-white tracking-tight">QA Verify & Track</h1>
                     <p className="text-gray-400">Sync your testing workflow across all devices.</p>
@@ -101,6 +102,10 @@ const LoginPage = () => {
                             {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
                         </button>
                     </div>
+                </div>
+
+                <div className="text-center">
+                    <p className="text-xs text-gray-400 font-medium opacity-80">Created by Samian Nichols</p>
                 </div>
             </div>
         </div>
@@ -186,6 +191,21 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
         githubToken: '',
         apps: []
     });
+
+    // Theme state
+    const [currentTheme, setCurrentTheme] = useState(themeService.getSavedThemeId());
+    const [isDark, setIsDark] = useState(themeService.getSavedMode());
+
+    const changeTheme = (themeId: string) => {
+        themeService.applyTheme(themeId);
+        setCurrentTheme(themeId);
+    };
+
+    const toggleMode = () => {
+        const newMode = !isDark;
+        themeService.setDarkMode(newMode);
+        setIsDark(newMode);
+    };
 
     const startEdit = (repo?: Repository) => {
         if (repo) {
@@ -287,22 +307,58 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
                         </button>
                         <h1 className="text-lg font-bold">Configuration</h1>
                     </div>
-                    <button onClick={() => startEdit()} className="flex items-center gap-1 bg-primary text-black px-3 py-1.5 rounded-lg text-sm font-bold">
-                        <span className="material-symbols-outlined text-lg">add</span> New
-                    </button>
                 </header>
-                <main className="p-4 space-y-4">
-                    <h2 className="text-xs uppercase text-gray-500 font-bold tracking-wider">Repositories</h2>
-                    {repos.map(repo => (
-                        <div key={repo.id} onClick={() => startEdit(repo)} className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">
-                            <div>
-                                <h3 className="font-bold text-slate-900 dark:text-white">{repo.displayName || repo.name}</h3>
-                                <p className="text-xs text-gray-500">{repo.owner}/{repo.name}</p>
-                            </div>
-                            <span className="material-symbols-outlined text-gray-400">edit</span>
+                <main className="p-4 space-y-6">
+                    <section className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xs uppercase text-gray-500 font-bold tracking-wider">Appearance</h2>
                         </div>
-                    ))}
+                        <div className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-900 dark:text-white">Dark Mode</label>
+                                <button onClick={toggleMode} className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-primary' : 'bg-gray-300'}`}>
+                                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDark ? 'translate-x-6' : ''}`}></div>
+                                </button>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-900 dark:text-white">Theme Color</label>
+                                <div className="grid grid-cols-5 gap-3">
+                                    {themes.map(t => (
+                                        <button
+                                            key={t.id}
+                                            onClick={() => changeTheme(t.id)}
+                                            className={`w-full aspect-square rounded-lg border-2 ${currentTheme === t.id ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'} transition-all shadow-sm`}
+                                            style={{ backgroundColor: t.colors.primary }}
+                                            title={t.name}
+                                        />
+                                    ))}
+                                </div>
+                                <p className="text-center text-xs text-gray-500 mt-1">{themes.find(t => t.id === currentTheme)?.name}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xs uppercase text-gray-500 font-bold tracking-wider">Repositories</h2>
+                            <button onClick={() => startEdit()} className="flex items-center gap-1 bg-primary text-black px-3 py-1.5 rounded-lg text-sm font-bold">
+                                <span className="material-symbols-outlined text-lg">add</span> New
+                            </button>
+                        </div>
+                        {repos.map(repo => (
+                            <div key={repo.id} onClick={() => startEdit(repo)} className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">
+                                <div>
+                                    <h3 className="font-bold text-slate-900 dark:text-white">{repo.displayName || repo.name}</h3>
+                                    <p className="text-xs text-gray-500">{repo.owner}/{repo.name}</p>
+                                </div>
+                                <span className="material-symbols-outlined text-gray-400">edit</span>
+                            </div>
+                        ))}
+                    </section>
                 </main>
+                <div className="text-center p-4">
+                    <p className="text-xs text-gray-500 font-medium opacity-60">Created by Samian Nichols</p>
+                </div>
             </div>
         );
     }
@@ -891,6 +947,12 @@ const App = () => {
         setLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    // Initialize Theme
+    themeService.applyTheme(themeService.getSavedThemeId());
+    themeService.setDarkMode(themeService.getSavedMode());
   }, []);
 
   useEffect(() => {
