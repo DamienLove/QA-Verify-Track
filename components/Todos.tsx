@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Repository } from '../types';
 import { githubService } from '../services/githubService';
 
@@ -65,9 +66,13 @@ const Todos = ({ repos }: { repos: Repository[] }) => {
                 {issueCount} open issues
               </p>
             </div>
-            <a href={`#/dashboard?repo=${repo.id}`} className="text-primary">
+            <Link
+              to={`/dashboard?repo=${repo.id}`}
+              className="text-primary hover:text-primary-hover p-2 rounded-full hover:bg-white/5 transition-colors"
+              aria-label={`View dashboard for ${repo.displayName || repo.name}`}
+            >
               <span className="material-symbols-outlined">arrow_forward</span>
-            </a>
+            </Link>
           </div>
         ))}
       </div>
