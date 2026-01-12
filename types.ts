@@ -18,6 +18,13 @@ export interface Repository {
   isConnected: boolean;
   projects?: string[];
   templates?: string[];
+  tests?: Test[];
+}
+
+export interface Test {
+  id: string;
+  description: string;
+  lastCheckedBuild?: string; // The build number it was last verified on
 }
 
 export interface Issue {

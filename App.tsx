@@ -478,8 +478,76 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
     const repoId = searchParams.get('repo');
     const repo = repos.find(r => r.id === repoId) || repos[0];
 
-    const [tab, setTab] = useState<'issues' | 'prs'>('issues');
+    const [tab, setTab] = useState<'issues' | 'prs' | 'tests'>('issues');
     const [buildNumber, setBuildNumber] = useState(repo?.apps[0]?.buildNumber || '0');
+
+    // Test State
+    const [tests, setTests] = useState(repo?.tests || []);
+    const [generatingTests, setGeneratingTests] = useState(false);
+    const [newTestDesc, setNewTestDesc] = useState('');
+
+    useEffect(() => {
+        if (repo) {
+            setTests(repo.tests || []);
+        }
+    }, [repo]);
+
+    const handleSaveTests = async (updatedTests: any[]) => {
+        if (!repo) return;
+        const updatedRepo = { ...repo, tests: updatedTests };
+        const updatedRepos = repos.map(r => r.id === repo.id ? updatedRepo : r);
+
+        // Save to Firebase
+        try {
+            await firebaseService.saveUserRepos(auth.currentUser!.uid, updatedRepos);
+        } catch (e) {
+            console.error("Failed to save tests", e);
+        }
+    };
+
+    const handleGenerateTests = async () => {
+        setGeneratingTests(true);
+        try {
+            const generated = await aiService.generateTests(repo.name, repo.displayName || repo.name);
+            const newTests = generated.map(t => ({
+                id: Date.now().toString() + Math.random().toString().slice(2),
+                description: t,
+                lastCheckedBuild: undefined
+            }));
+            const updatedTests = [...tests, ...newTests];
+            setTests(updatedTests);
+            await handleSaveTests(updatedTests);
+        } finally {
+            setGeneratingTests(false);
+        }
+    };
+
+    const handleAddTest = async () => {
+        if (!newTestDesc.trim()) return;
+        const newTest = {
+            id: Date.now().toString(),
+            description: newTestDesc,
+            lastCheckedBuild: undefined
+        };
+        const updatedTests = [...tests, newTest];
+        setTests(updatedTests);
+        setNewTestDesc('');
+        await handleSaveTests(updatedTests);
+    };
+
+    const toggleTest = async (testId: string) => {
+        const updatedTests = tests.map(t => {
+            if (t.id === testId) {
+                // If currently checked (matches build), uncheck it (undefined or old build).
+                // If unchecked, check it (set to current build).
+                const isChecked = t.lastCheckedBuild === buildNumber;
+                return { ...t, lastCheckedBuild: isChecked ? undefined : buildNumber };
+            }
+            return t;
+        });
+        setTests(updatedTests);
+        await handleSaveTests(updatedTests);
+    };
 
     // Ensure GitHub client is ready whenever the selected repo/token changes
     useEffect(() => {
@@ -693,6 +761,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                 <div className="flex items-center bg-gray-200 dark:bg-surface-dark-lighter rounded-lg p-0.5 border border-transparent dark:border-white/10">
                     <button onClick={() => setTab('issues')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'issues' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Issues</button>
                     <button onClick={() => setTab('prs')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'prs' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>PRs</button>
+                    <button onClick={() => setTab('tests')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'tests' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Tests</button>
                 </div>
             </header>
 
@@ -878,6 +947,71 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                 </div>
                              )
                         })}
+                    </div>
+                )}
+
+                {tab === 'tests' && (
+                    <div className="space-y-4">
+                        <div className="flex flex-col gap-3">
+                            <div className="bg-white dark:bg-surface-dark-lighter rounded-xl p-4 border border-gray-200 dark:border-white/5 space-y-3">
+                                <h3 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-wider">Add Manual Test</h3>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newTestDesc}
+                                        onChange={e => setNewTestDesc(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleAddTest()}
+                                        placeholder="e.g. Verify login with invalid credentials"
+                                        className="flex-1 bg-background-light dark:bg-background-dark border-transparent rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white"
+                                    />
+                                    <button onClick={handleAddTest} disabled={!newTestDesc.trim()} className="bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-900 dark:text-white px-4 rounded-lg font-bold text-sm disabled:opacity-50">Add</button>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleGenerateTests}
+                                disabled={generatingTests}
+                                className="w-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl p-3 flex items-center justify-center gap-2 font-bold text-sm transition-colors disabled:opacity-50"
+                            >
+                                {generatingTests ? (
+                                    <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                                ) : (
+                                    <span className="material-symbols-outlined text-lg">smart_toy</span>
+                                )}
+                                Generate AI Test Plan
+                            </button>
+                        </div>
+
+                        <div className="space-y-2">
+                             <div className="flex justify-between items-center pb-1">
+                                 <h2 className="text-sm font-bold text-slate-900 dark:text-white">Verification Checklist</h2>
+                                 <span className="text-[11px] text-gray-400">Build #{buildNumber}</span>
+                             </div>
+
+                            {tests.length === 0 ? (
+                                <div className="text-center py-10 opacity-50">
+                                    <span className="material-symbols-outlined text-5xl mb-2">playlist_add_check</span>
+                                    <p className="text-sm font-medium">No tests defined yet.</p>
+                                </div>
+                            ) : (
+                                tests.map(test => {
+                                    const isChecked = test.lastCheckedBuild === buildNumber;
+                                    return (
+                                        <div key={test.id} onClick={() => toggleTest(test.id)} className={`group cursor-pointer flex items-start gap-3 p-3 rounded-xl border transition-all ${isChecked ? 'bg-primary/5 border-primary/20' : 'bg-white dark:bg-surface-dark-lighter border-gray-200 dark:border-white/5 hover:border-primary/30'}`}>
+                                            <div className={`mt-0.5 flex-shrink-0 size-5 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-black' : 'bg-transparent border-gray-400 dark:border-gray-500 group-hover:border-primary'}`}>
+                                                {isChecked && <span className="material-symbols-outlined text-sm font-bold">check</span>}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className={`text-sm ${isChecked ? 'text-gray-500 line-through' : 'text-slate-900 dark:text-white'}`}>{test.description}</p>
+                                                {test.lastCheckedBuild && !isChecked && (
+                                                    <p className="text-[10px] text-gray-400 mt-1">Last checked on build #{test.lastCheckedBuild}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
                     </div>
                 )}
             </main>
