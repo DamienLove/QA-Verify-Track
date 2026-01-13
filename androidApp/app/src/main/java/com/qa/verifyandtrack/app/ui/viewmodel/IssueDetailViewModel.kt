@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.qa.verifyandtrack.app.data.AppContainer
 import com.qa.verifyandtrack.app.data.model.Comment
 import com.qa.verifyandtrack.app.data.model.Issue
+import com.qa.verifyandtrack.app.data.model.Repository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,11 +23,23 @@ class IssueDetailViewModel : ViewModel() {
     private val _comments = MutableStateFlow<List<Comment>>(emptyList())
     val comments: StateFlow<List<Comment>> = _comments
 
+    private val _isCommenting = MutableStateFlow(false)
+    val isCommenting: StateFlow<Boolean> = _isCommenting
+
+    private val _commentError = MutableStateFlow<String?>(null)
+    val commentError: StateFlow<String?> = _commentError
+
+    private val _commentSuccess = MutableStateFlow(false)
+    val commentSuccess: StateFlow<Boolean> = _commentSuccess
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
+
+    private var currentRepo: Repository? = null
+    private var currentIssueNumber: Int? = null
 
     fun loadIssue(repoId: String?, issueNumber: Int?) {
         if (repoId.isNullOrBlank() || issueNumber == null) {
@@ -51,6 +64,8 @@ class IssueDetailViewModel : ViewModel() {
                 _isLoading.value = false
                 return@launch
             }
+            currentRepo = repo
+            currentIssueNumber = issueNumber
             val token = repo.githubToken
             if (token.isNullOrBlank()) {
                 _error.value = "Missing GitHub token for ${repo.displayLabel}."
@@ -86,5 +101,50 @@ class IssueDetailViewModel : ViewModel() {
 
             _isLoading.value = false
         }
+    }
+
+    fun addComment(text: String) {
+        val repo = currentRepo
+        val issueNumber = currentIssueNumber
+        if (repo == null || issueNumber == null) {
+            _commentError.value = "Issue not loaded yet."
+            return
+        }
+        if (text.isBlank()) {
+            _commentError.value = "Comment cannot be empty."
+            return
+        }
+        val token = repo.githubToken
+        if (token.isNullOrBlank()) {
+            _commentError.value = "Missing GitHub token for ${repo.displayLabel}."
+            return
+        }
+
+        viewModelScope.launch {
+            _isCommenting.value = true
+            _commentError.value = null
+            _commentSuccess.value = false
+            val result = withContext(Dispatchers.IO) {
+                gitHubRepository.initialize(token)
+                runCatching {
+                    val added = gitHubRepository.addComment(repo.owner, repo.name, issueNumber, text.trim())
+                    if (!added) {
+                        throw IllegalStateException("Failed to add comment.")
+                    }
+                    gitHubRepository.getIssueComments(repo.owner, repo.name, issueNumber)
+                }
+            }
+            result.onSuccess { updatedComments ->
+                _comments.value = updatedComments
+                _commentSuccess.value = true
+            }.onFailure { error ->
+                _commentError.value = error.message ?: "Failed to add comment."
+            }
+            _isCommenting.value = false
+        }
+    }
+
+    fun clearCommentSuccess() {
+        _commentSuccess.value = false
     }
 }

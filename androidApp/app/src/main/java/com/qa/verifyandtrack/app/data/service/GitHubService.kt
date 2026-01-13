@@ -77,8 +77,16 @@ class GitHubService {
                 return cached.data
             }
         }
-        val response = api.listIssueComments(owner, repo, issueNumber)
-        val comments = response.map { Comment(id = it.id.toString(), text = it.body.orEmpty()) }
+        val comments = mutableListOf<Comment>()
+        var page = 1
+        val perPage = 100
+        while (true) {
+            val response = api.listIssueComments(owner, repo, issueNumber, page = page, perPage = perPage)
+            if (response.isEmpty()) break
+            comments.addAll(response.map { Comment(id = it.id.toString(), text = it.body.orEmpty()) })
+            if (response.size < perPage) break
+            page++
+        }
         if (lastUpdated != null) {
             if (commentsCache.size > 500) {
                 commentsCache.clear()
@@ -91,7 +99,17 @@ class GitHubService {
     suspend fun getIssues(owner: String, repo: String, state: String = "open"): List<Issue> {
         requireToken()
         return try {
-            api.listIssues(owner, repo, state)
+            val allIssues = mutableListOf<IssueResponse>()
+            var page = 1
+            val perPage = 100
+            while (true) {
+                val pageItems = api.listIssues(owner, repo, state, page = page, perPage = perPage)
+                if (pageItems.isEmpty()) break
+                allIssues.addAll(pageItems)
+                if (pageItems.size < perPage) break
+                page++
+            }
+            allIssues
                 .filter { it.pullRequest == null }
                 .map { mapIssue(it) }
         } catch (e: Exception) {
@@ -102,8 +120,17 @@ class GitHubService {
     suspend fun getPullRequests(owner: String, repo: String): List<PullRequest> {
         requireToken()
         return try {
-            api.listPulls(owner, repo)
-                .map { mapPullRequest(it) }
+            val allPulls = mutableListOf<PullRequestResponse>()
+            var page = 1
+            val perPage = 100
+            while (true) {
+                val pageItems = api.listPulls(owner, repo, page = page, perPage = perPage)
+                if (pageItems.isEmpty()) break
+                allPulls.addAll(pageItems)
+                if (pageItems.size < perPage) break
+                page++
+            }
+            allPulls.map { mapPullRequest(it) }
         } catch (e: Exception) {
             emptyList()
         }
@@ -116,6 +143,7 @@ class GitHubService {
             id = response.id ?: 0,
             number = response.number ?: pullNumber,
             title = response.title.orEmpty(),
+            nodeId = response.nodeId.orEmpty(),
             mergeable = response.mergeable,
             mergeableState = response.mergeableState,
             isDraft = response.draft ?: false,
@@ -158,11 +186,26 @@ class GitHubService {
     suspend fun markReadyForReview(owner: String, repo: String, pullNumber: Int): Result<Unit> {
         requireToken()
         return try {
-            val response = api.readyForReview(owner, repo, pullNumber)
-            if (response.isSuccessful) {
-                Result.success(Unit)
+            val details = getPullRequest(owner, repo, pullNumber)
+            if (!details.isDraft) {
+                return Result.success(Unit)
+            }
+            val nodeId = details.nodeId
+            if (nodeId.isBlank()) {
+                val response = api.readyForReview(owner, repo, pullNumber)
+                if (response.isSuccessful) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(IllegalStateException(responseErrorMessage(response)))
+                }
             } else {
-                Result.failure(IllegalStateException(responseErrorMessage(response)))
+                val mutation = "mutation(${'$'}id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: ${'$'}id}) { clientMutationId } }"
+                val response = api.graphql(GraphQlRequest(query = mutation, variables = mapOf("id" to nodeId)))
+                if (response.isSuccessful) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(IllegalStateException(responseErrorMessage(response)))
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -279,14 +322,17 @@ private interface GitHubApi {
         @Query("state") state: String,
         @Query("sort") sort: String = "updated",
         @Query("direction") direction: String = "desc",
-        @Query("per_page") perPage: Int = 50
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 100
     ): List<IssueResponse>
 
     @GET("repos/{owner}/{repo}/issues/{issue_number}/comments")
     suspend fun listIssueComments(
         @Path("owner") owner: String,
         @Path("repo") repo: String,
-        @Path("issue_number") issueNumber: Int
+        @Path("issue_number") issueNumber: Int,
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 100
     ): List<CommentResponse>
 
     @GET("repos/{owner}/{repo}/pulls")
@@ -295,7 +341,9 @@ private interface GitHubApi {
         @Path("repo") repo: String,
         @Query("state") state: String = "open",
         @Query("sort") sort: String = "updated",
-        @Query("direction") direction: String = "desc"
+        @Query("direction") direction: String = "desc",
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 100
     ): List<PullRequestResponse>
 
     @GET("repos/{owner}/{repo}/pulls/{pull_number}")
@@ -341,6 +389,9 @@ private interface GitHubApi {
         @Path("repo") repo: String,
         @Path("pull_number") pullNumber: Int
     ): Response<Unit>
+
+    @POST("graphql")
+    suspend fun graphql(@Body request: GraphQlRequest): Response<Any>
 
     @PATCH("repos/{owner}/{repo}/pulls/{pull_number}")
     suspend fun updatePull(
@@ -411,6 +462,7 @@ private data class PullRequestDetailResponse(
     val id: Long? = null,
     val number: Int? = null,
     val title: String? = null,
+    @SerializedName("node_id") val nodeId: String? = null,
     val mergeable: Boolean? = null,
     @SerializedName("mergeable_state") val mergeableState: String? = null,
     val draft: Boolean? = null,
@@ -443,4 +495,9 @@ private data class UpdateIssueRequest(
 private data class UpdatePullRequest(
     val state: String? = null,
     val draft: Boolean? = null
+)
+
+private data class GraphQlRequest(
+    val query: String,
+    val variables: Map<String, Any>
 )

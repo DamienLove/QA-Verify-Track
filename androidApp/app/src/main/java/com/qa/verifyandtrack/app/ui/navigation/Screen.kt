@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.ui.graphics.vector.ImageVector
+import android.net.Uri
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector? = null) {
     data object Login : Screen("login", "Login")
@@ -24,8 +25,12 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector?
     data object IssueDetail : Screen("issueDetail/{repoId}/{issueNumber}", "Issue Detail") {
         fun createRoute(repoId: String, issueNumber: Int) = "issueDetail/$repoId/$issueNumber"
     }
-    data object QuickIssue : Screen("quickIssue/{repoId}", "Quick Issue", Icons.Filled.Build) {
-        fun createRoute(repoId: String) = "quickIssue/$repoId"
+    data object QuickIssue : Screen("quickIssue/{repoId}?build={build}", "Quick Issue", Icons.Filled.Build) {
+        fun createRoute(repoId: String, build: String? = null): String {
+            val trimmed = build?.trim().orEmpty()
+            val encoded = if (trimmed.isNotBlank()) Uri.encode(trimmed) else ""
+            return if (encoded.isNotBlank()) "quickIssue/$repoId?build=$encoded" else "quickIssue/$repoId"
+        }
     }
     data object Profile : Screen("profile", "Profile", Icons.Filled.Person)
     data object Upgrade : Screen("upgrade", "Upgrade", Icons.Filled.Star)

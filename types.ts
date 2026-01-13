@@ -13,12 +13,19 @@ export interface Repository {
   displayName?: string;
   apiEndpoint?: string;
   githubToken?: string; // Stored securely in Firestore rules usually, but here in user doc
+  useCustomToken?: boolean;
   avatarUrl?: string;
   apps: AppConfig[];
   isConnected: boolean;
   projects?: string[];
   templates?: string[];
   tests?: Test[];
+}
+
+export interface GlobalSettings {
+  globalGithubToken?: string;
+  defaultBranch?: string;
+  theme?: string;
 }
 
 export interface Test {

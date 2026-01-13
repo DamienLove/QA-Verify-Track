@@ -1,12 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams, Navigate, useParams } from 'react-router-dom';
-import { Repository, AppConfig, Issue, PullRequest, Comment } from './types';
+import { Repository, AppConfig, Issue, PullRequest, Comment, GlobalSettings } from './types';
 import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
+
+const normalizeRepos = (repos: Repository[]): Repository[] =>
+  repos.map((repo) => ({
+    ...repo,
+    apps: (repo.apps || []).map((app, index) => ({
+      ...app,
+      id: app.id || `${repo.id || repo.name || 'repo'}-app-${index}`,
+      platform: app.platform || 'android',
+      buildNumber: (app.buildNumber ?? '1').toString().trim() || '1',
+    })),
+    tests: repo.tests || [],
+  }));
+
+const parseBuildNumber = (value?: string | null) => {
+  if (!value) return null;
+  const match = value.match(/(\d+)/);
+  if (!match) return null;
+  const parsed = parseInt(match[1], 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const resolveGithubToken = (repo: Repository, globalSettings?: GlobalSettings) => {
+  if (repo.useCustomToken === false) {
+    return globalSettings?.globalGithubToken || repo.githubToken || '';
+  }
+  return repo.githubToken || globalSettings?.globalGithubToken || '';
+};
 
 // --- Shared UI Components ---
 
@@ -125,10 +152,12 @@ const LoginPage = () => {
 const HomePage = ({
     repos,
     user,
+    globalSettings,
     onNotesClick
 }: {
     repos: Repository[],
     user: User,
+    globalSettings: GlobalSettings,
     onNotesClick: () => void
 }) => {
     const [repoStats, setRepoStats] = useState<Record<string, { issues: number; prs: number }>>({});
@@ -139,14 +168,15 @@ const HomePage = ({
             const stats: Record<string, { issues: number; prs: number }> = {};
 
             await Promise.all(repos.map(async (repo) => {
-                if (!repo.githubToken) return;
+                const token = resolveGithubToken(repo, globalSettings);
+                if (!token) return;
 
                 try {
                     // Use parallel fetching with explicit token to avoid singleton race conditions
                     // Also use optimized count-only fetch for PRs instead of fetching full list
                     const [issues, prCount] = await Promise.all([
-                        githubService.getOpenIssueCount(repo.owner, repo.name, repo.githubToken),
-                        githubService.getOpenPullRequestCount(repo.owner, repo.name, repo.githubToken)
+                        githubService.getOpenIssueCount(repo.owner, repo.name, token),
+                        githubService.getOpenPullRequestCount(repo.owner, repo.name, token)
                     ]);
                     stats[repo.id] = { issues, prs: prCount };
                 } catch (error) {
@@ -168,7 +198,7 @@ const HomePage = ({
         return () => {
             isMounted = false;
         };
-    }, [repos]);
+    }, [repos, globalSettings]);
 
     return (
         <div className="relative flex h-full min-h-screen w-full flex-col overflow-hidden pb-20">
@@ -233,12 +263,26 @@ const HomePage = ({
 };
 
 // 2. Configuration Page
-const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], setRepos: React.Dispatch<React.SetStateAction<Repository[]>>, user: User }) => {
+const ConfigurationPage = ({
+    repos,
+    setRepos,
+    user,
+    globalSettings,
+    setGlobalSettings
+}: {
+    repos: Repository[],
+    setRepos: React.Dispatch<React.SetStateAction<Repository[]>>,
+    user: User,
+    globalSettings: GlobalSettings,
+    setGlobalSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>
+}) => {
     const navigate = useNavigate();
-    const [view, setView] = useState<'list' | 'edit'>('list');
+    const [view, setView] = useState<'list' | 'edit' | 'global'>('list');
     const [activeRepoId, setActiveRepoId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
+
+    const [globalForm, setGlobalForm] = useState<GlobalSettings>(globalSettings || {});
 
     // Form State
     const [formData, setFormData] = useState<Partial<Repository>>({
@@ -264,10 +308,16 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
         setIsDark(newMode);
     };
 
+    useEffect(() => {
+        setGlobalForm(globalSettings || {});
+    }, [globalSettings]);
+
+    const useCustomToken = formData.useCustomToken !== false;
+
     const startEdit = (repo?: Repository) => {
         if (repo) {
             setActiveRepoId(repo.id);
-            setFormData(repo);
+            setFormData({ ...repo, useCustomToken: repo.useCustomToken !== false });
         } else {
             setActiveRepoId(null);
             setFormData({
@@ -276,6 +326,7 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
                 owner: '',
                 displayName: '',
                 githubToken: '',
+                useCustomToken: true,
                 apps: [{ id: Date.now().toString(), name: 'New App', platform: 'android', buildNumber: '1' }],
                 projects: [],
                 templates: []
@@ -354,6 +405,29 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
         }
     };
 
+    const startGlobalEdit = () => {
+        setSaveError('');
+        setSaving(false);
+        setGlobalForm(globalSettings || {});
+        setView('global');
+    };
+
+    const saveGlobalSettings = async () => {
+        setSaveError('');
+        setSaving(true);
+        try {
+            const nextSettings = { ...globalForm };
+            setGlobalSettings(nextSettings);
+            await firebaseService.saveGlobalSettings(user.uid, nextSettings);
+            setView('list');
+        } catch (error: any) {
+            console.error('Failed to save global settings', error);
+            setSaveError(error?.message || 'Failed to save global settings.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     if (view === 'list') {
         return (
             <div className="bg-background-light dark:bg-background-dark min-h-screen pb-safe">
@@ -397,6 +471,22 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
 
                     <section className="space-y-4">
                         <div className="flex justify-between items-center">
+                            <h2 className="text-xs uppercase text-gray-500 font-bold tracking-wider">Global GitHub</h2>
+                            <button onClick={startGlobalEdit} className="text-xs flex items-center gap-1 bg-black/5 dark:bg-white/5 px-2 py-1 rounded text-slate-900 dark:text-white hover:bg-black/10 dark:hover:bg-white/10">
+                                <span className="material-symbols-outlined text-sm">settings</span>
+                                Edit
+                            </button>
+                        </div>
+                        <div className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 space-y-2">
+                            <div className="text-sm font-medium text-slate-900 dark:text-white">GitHub PAT</div>
+                            <p className="text-xs text-gray-500">
+                                {globalSettings?.globalGithubToken ? 'Set (used when repo token is disabled)' : 'Not set'}
+                            </p>
+                        </div>
+                    </section>
+
+                    <section className="space-y-4">
+                        <div className="flex justify-between items-center">
                             <h2 className="text-xs uppercase text-gray-500 font-bold tracking-wider">Repositories</h2>
                             <button onClick={() => startEdit()} className="flex items-center gap-1 bg-primary text-black px-3 py-1.5 rounded-lg text-sm font-bold">
                                 <span className="material-symbols-outlined text-lg">add</span> New
@@ -416,6 +506,50 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
                 <div className="text-center p-4">
                     <p className="text-xs text-gray-500 font-medium opacity-60">Created by Samian Nichols</p>
                 </div>
+            </div>
+        );
+    }
+
+    if (view === 'global') {
+        return (
+            <div className="bg-background-light dark:bg-background-dark min-h-screen pb-safe">
+                <header className="sticky top-0 z-20 flex items-center justify-between p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5">
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => setView('list')} aria-label="Close global settings" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
+                            <span className="material-symbols-outlined text-slate-900 dark:text-white">close</span>
+                        </button>
+                        <h1 className="text-lg font-bold">Global Settings</h1>
+                    </div>
+                    <button
+                        onClick={saveGlobalSettings}
+                        disabled={saving}
+                        className="text-primary font-bold text-sm disabled:opacity-50 disabled:pointer-events-none flex items-center gap-2"
+                    >
+                        {saving && <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>}
+                        {saving ? 'Saving...' : 'Save'}
+                    </button>
+                </header>
+                {saveError && (
+                    <div className="mx-4 mt-3 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg">
+                        {saveError}
+                    </div>
+                )}
+                <main className="p-4 space-y-6">
+                    <section className="space-y-4">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-primary">GitHub</h2>
+                        <div className="space-y-2">
+                            <label className="text-xs text-gray-500">Global GitHub Personal Access Token (PAT)</label>
+                            <input
+                                value={globalForm.globalGithubToken || ''}
+                                onChange={(e) => setGlobalForm({ ...globalForm, globalGithubToken: e.target.value })}
+                                type="password"
+                                placeholder="ghp_..."
+                                className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white"
+                            />
+                            <p className="text-[10px] text-gray-500">Used for repositories that disable per-repo tokens.</p>
+                        </div>
+                    </section>
+                </main>
             </div>
         );
     }
@@ -475,10 +609,28 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
                                 <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                         </div>
-                        <div className="space-y-1">
-                            <label className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
-                            <input value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
-                            <p className="text-[10px] text-gray-500">Required for reading/writing to this private/public repo.</p>
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs text-gray-500">Use repo-specific PAT</label>
+                                <button
+                                    onClick={() => setFormData({ ...formData, useCustomToken: !useCustomToken })}
+                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${useCustomToken ? 'bg-primary' : 'bg-gray-300'}`}
+                                    type="button"
+                                >
+                                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${useCustomToken ? 'translate-x-6' : ''}`}></div>
+                                </button>
+                            </div>
+                            {useCustomToken ? (
+                                <>
+                                    <label className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
+                                    <input value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                    <p className="text-[10px] text-gray-500">Used for reading/writing to this repository.</p>
+                                </>
+                            ) : (
+                                <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-white/60 dark:bg-input-dark px-3 py-2 text-xs text-gray-500">
+                                    Using global GitHub token. {globalSettings?.globalGithubToken ? 'Global token is set.' : 'Global token is not set yet.'}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </section>
@@ -529,14 +681,18 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
 };
 
 // 3. Dashboard
-const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick: () => void }) => {
+const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repository[], user: User, globalSettings: GlobalSettings, onNotesClick: () => void }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const repoId = searchParams.get('repo');
     const repo = repos.find(r => r.id === repoId) || repos[0];
 
     const [tab, setTab] = useState<'issues' | 'prs' | 'tests'>('issues');
+    const [activeAppId, setActiveAppId] = useState(repo?.apps[0]?.id || '');
     const [buildNumber, setBuildNumber] = useState(repo?.apps[0]?.buildNumber || '0');
+    const [ownerProjectsUrl, setOwnerProjectsUrl] = useState('');
+    const activeApp = repo?.apps.find(app => app.id === activeAppId) || repo?.apps[0];
+    const activeToken = repo ? resolveGithubToken(repo, globalSettings) : '';
 
     // Test State
     const [tests, setTests] = useState(repo?.tests || []);
@@ -548,6 +704,61 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
             setTests(repo.tests || []);
         }
     }, [repo]);
+
+    useEffect(() => {
+        if (!repo?.apps?.length) {
+            setActiveAppId('');
+            return;
+        }
+        if (!repo.apps.some(app => app.id === activeAppId)) {
+            setActiveAppId(repo.apps[0].id);
+        }
+    }, [repo?.id, repo?.apps, activeAppId]);
+
+    useEffect(() => {
+        if (activeApp?.buildNumber) {
+            setBuildNumber(activeApp.buildNumber);
+        }
+    }, [activeApp?.id, activeApp?.buildNumber]);
+
+    const persistBuildNumber = async (value: string) => {
+        if (!repo || !activeApp) return;
+        const updatedApps = repo.apps.map(app =>
+            app.id === activeApp.id ? { ...app, buildNumber: value } : app
+        );
+        const updatedRepo = { ...repo, apps: updatedApps };
+        const updatedRepos = repos.map(r => (r.id === repo.id ? updatedRepo : r));
+        try {
+            await firebaseService.saveUserRepos(user.uid, updatedRepos);
+        } catch (e) {
+            console.error("Failed to save build number", e);
+        }
+    };
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadOwnerProjects = async () => {
+            if (!repo?.owner || !activeToken) {
+                setOwnerProjectsUrl('');
+                return;
+            }
+            githubService.initialize(activeToken);
+            const ownerType = await githubService.getOwnerType(repo.owner);
+            if (!isMounted) return;
+            if (ownerType === 'Organization') {
+                setOwnerProjectsUrl(`https://github.com/orgs/${repo.owner}/projects`);
+            } else if (ownerType === 'User') {
+                setOwnerProjectsUrl(`https://github.com/users/${repo.owner}/projects`);
+            } else {
+                setOwnerProjectsUrl('');
+            }
+        };
+
+        loadOwnerProjects();
+        return () => {
+            isMounted = false;
+        };
+    }, [repo?.id, repo?.owner, activeToken]);
 
     const handleSaveTests = async (updatedTests: any[]) => {
         if (!repo) return;
@@ -608,13 +819,16 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
 
     // Ensure GitHub client is ready whenever the selected repo/token changes
     useEffect(() => {
-        if (repo?.githubToken) {
-            githubService.initialize(repo.githubToken);
+        if (activeToken) {
+            githubService.initialize(activeToken);
         }
-    }, [repo?.githubToken]);
+    }, [activeToken]);
 
     // Real Data State
     const [issues, setIssues] = useState<Issue[]>([]);
+    const [allIssues, setAllIssues] = useState<Issue[]>([]);
+    const [issueBuildMap, setIssueBuildMap] = useState<Record<number, number>>({});
+    const [issueVerifyFixMap, setIssueVerifyFixMap] = useState<Record<number, number>>({});
     const [prs, setPrs] = useState<PullRequest[]>([]);
     const [loading, setLoading] = useState(false);
     
@@ -628,20 +842,31 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
   const [analysisResults, setAnalysisResults] = useState<Record<number, string>>({});
   const [syncError, setSyncError] = useState<string>('');
   const [prError, setPrError] = useState<string>('');
+  const [issueActionIds, setIssueActionIds] = useState<Set<number>>(new Set());
+  const [issueActionError, setIssueActionError] = useState('');
+  const [blockIssue, setBlockIssue] = useState<Issue | null>(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [blockSaving, setBlockSaving] = useState(false);
+  const [blockError, setBlockError] = useState('');
 
     // Initial Fetch
     useEffect(() => {
-        if (repo && repo.githubToken) {
+        if (repo && activeToken) {
             handleSync(false); // Initial load without auto-populating build number
         }
-    }, [repo]);
+    }, [repo, activeToken]);
 
     // fetchStoreBuild: when true, try to auto-populate build number from stored app config (no external store fetch to avoid CORS)
     const handleSync = async (fetchStoreBuild: boolean = false) => {
         setLoading(true);
         setSyncError('');
-        if (fetchStoreBuild && repo?.apps[0]?.playStoreUrl) {
-             const storedBuild = repo.apps[0]?.buildNumber;
+        if (!activeToken) {
+            setSyncError('Missing GitHub token. Configure a global or repo token.');
+            setLoading(false);
+            return;
+        }
+        if (fetchStoreBuild) {
+             const storedBuild = activeApp?.buildNumber;
              if (storedBuild) {
                  setBuildNumber(storedBuild.toString());
              }
@@ -653,47 +878,53 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                 githubService.getPullRequests(repo.owner, repo.name)
             ]);
 
-            // Filter out issues that already have status comments for this build number
-            const statusRegex = /\b(open|closed|blocked)\s*v?\s*(\d+)\b/gi;
-            const issuesWithComments = await Promise.all(
+            const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]*(?:build\s*)?v?\s*(\d+)\b/gi;
+            const verifyFixRegex = /\bverify\s*fix\b[^\d]*v?\s*(\d+)\b/gi;
+            const statusBuildMap: Record<number, number> = {};
+            const verifyFixBuildMap: Record<number, number> = {};
+            await Promise.all(
               fetchedIssues.map(async (issue) => {
+                if (issue.commentsCount <= 0) {
+                    return;
+                }
                 try {
-                  // Optimization: Skip fetching comments if there are none
-                  const comments = issue.commentsCount > 0
-                    ? await githubService.getIssueComments(repo.owner, repo.name, issue.number, issue.updatedAt)
-                    : [];
-
-                  const targetBuild = parseInt((buildNumber || '0').trim(), 10);
-
-                  let matched = false;
-                  let maxBuild = -1;
+                  const comments = await githubService.getIssueComments(repo.owner, repo.name, issue.number, issue.updatedAt);
+                  let maxStatusBuild = -1;
+                  let maxVerifyBuild = -1;
                   for (const c of comments) {
                     const body = c.body || '';
                     let m;
                     statusRegex.lastIndex = 0;
                     while ((m = statusRegex.exec(body)) !== null) {
-                      matched = true;
                       const b = parseInt(m[2], 10);
                       if (!isNaN(b)) {
-                        maxBuild = Math.max(maxBuild, b);
+                        maxStatusBuild = Math.max(maxStatusBuild, b);
+                      }
+                    }
+                    let v;
+                    verifyFixRegex.lastIndex = 0;
+                    while ((v = verifyFixRegex.exec(body)) !== null) {
+                      const b = parseInt(v[1], 10);
+                      if (!isNaN(b)) {
+                        maxVerifyBuild = Math.max(maxVerifyBuild, b);
                       }
                     }
                   }
-
-                  // Hide if any status comment references this build or a higher one
-                  if (matched && maxBuild >= targetBuild) {
-                    return null;
+                  if (maxStatusBuild >= 0) {
+                    statusBuildMap[issue.id] = maxStatusBuild;
                   }
-                  return issue;
+                  if (maxVerifyBuild >= 0) {
+                    verifyFixBuildMap[issue.id] = maxVerifyBuild;
+                  }
                 } catch (err) {
-                  // If comments fail to load, keep the issue visible
                   console.error('Failed to load comments for issue', issue.number, err);
-                  return issue;
                 }
               })
             );
 
-            setIssues(issuesWithComments.filter(Boolean) as Issue[]);
+            setAllIssues(fetchedIssues);
+            setIssueBuildMap(statusBuildMap);
+            setIssueVerifyFixMap(verifyFixBuildMap);
             setPrs(fetchedPrs);
         } catch (error) {
             console.error("Sync failed", error);
@@ -703,16 +934,145 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
         }
     };
 
+    useEffect(() => {
+        const targetBuild = parseBuildNumber(buildNumber);
+        setIssues(allIssues.filter(issue => {
+            const verifyBuild = issueVerifyFixMap[issue.id];
+            const statusBuild = issueBuildMap[issue.id];
+            if (targetBuild == null) {
+                return verifyBuild != null || statusBuild == null;
+            }
+            if (verifyBuild != null && verifyBuild <= targetBuild) {
+                return true;
+            }
+            if (statusBuild != null) {
+                return false;
+            }
+            return true;
+        }));
+    }, [buildNumber, allIssues, issueBuildMap, issueVerifyFixMap]);
+
+    const startIssueAction = (issueId: number) => {
+        setIssueActionIds(prev => new Set(prev).add(issueId));
+    };
+
+    const endIssueAction = (issueId: number) => {
+        setIssueActionIds(prev => {
+            const next = new Set(prev);
+            next.delete(issueId);
+            return next;
+        });
+    };
+
     const handleFixed = async (id: number, number: number) => {
-        setIssues(issues.filter(i => i.id !== id));
-        await githubService.addComment(repo.owner, repo.name, number, `verified fixed ${buildNumber}`);
-        await githubService.updateIssueStatus(repo.owner, repo.name, number, 'closed');
+        setIssueActionError('');
+        startIssueAction(id);
+        const buildTag = (buildNumber || '').trim();
+        const status = buildTag ? `fixed v${buildTag}` : 'fixed';
+        let closed = false;
+        let commentFailed = false;
+        try {
+            try {
+                await githubService.addComment(repo.owner, repo.name, number, status);
+            } catch (e) {
+                commentFailed = true;
+                console.error('Failed to add fixed comment', e);
+            }
+            await githubService.updateIssueStatus(repo.owner, repo.name, number, 'closed');
+            closed = true;
+        } catch (e) {
+            console.error('Failed to close issue', e);
+        } finally {
+            if (closed) {
+                setAllIssues(prev => prev.filter(i => i.id !== id));
+                setIssueBuildMap(prev => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                });
+                if (commentFailed) {
+                    setIssueActionError('Issue closed, but failed to add the build comment.');
+                }
+            } else {
+                setIssueActionError('Failed to mark issue fixed. Check your token and try again.');
+            }
+            endIssueAction(id);
+        }
     };
 
     const handleOpen = async (id: number, number: number) => {
-        setIssues(issues.filter(i => i.id !== id));
-        await githubService.addComment(repo.owner, repo.name, number, `open ${buildNumber}`);
-        // Ensure it stays open (no-op mostly, but good for tracking)
+        setIssueActionError('');
+        startIssueAction(id);
+        const buildTag = (buildNumber || '').trim();
+        const status = buildTag ? `open v${buildTag}` : 'open';
+        let commentFailed = false;
+        let reopened = false;
+        try {
+            try {
+                await githubService.addComment(repo.owner, repo.name, number, status);
+            } catch (e) {
+                commentFailed = true;
+                console.error('Failed to add open comment', e);
+            }
+            await githubService.updateIssueStatus(repo.owner, repo.name, number, 'open');
+            reopened = true;
+        } catch (e) {
+            console.error('Failed to mark issue open', e);
+        } finally {
+            if (reopened) {
+                const targetBuild = parseBuildNumber(buildNumber);
+                if (targetBuild != null) {
+                    setIssueBuildMap(prev => {
+                        const current = prev[id] ?? -1;
+                        return { ...prev, [id]: Math.max(current, targetBuild) };
+                    });
+                }
+                if (commentFailed) {
+                    setIssueActionError('Issue reopened, but failed to add the build comment.');
+                }
+            } else {
+                setIssueActionError('Failed to mark issue open. Check your token and try again.');
+            }
+            endIssueAction(id);
+        }
+    };
+
+    const openBlockPrompt = (issue: Issue) => {
+        setBlockIssue(issue);
+        setBlockReason('');
+        setBlockError('');
+    };
+
+    const handleBlocked = async () => {
+        if (!blockIssue) return;
+        const issueId = blockIssue.id;
+        setBlockSaving(true);
+        setBlockError('');
+        setIssueActionError('');
+        startIssueAction(issueId);
+        try {
+            const buildTag = (buildNumber || '').trim();
+            const reason = blockReason.trim();
+            const status = buildTag ? `blocked v${buildTag}` : 'blocked';
+            const body = reason ? `${status} - ${reason}` : status;
+            await githubService.addComment(repo.owner, repo.name, blockIssue.number, body);
+            const targetBuild = parseBuildNumber(buildNumber);
+            if (targetBuild != null) {
+                setIssueBuildMap(prev => {
+                    const current = prev[issueId] ?? -1;
+                    return { ...prev, [issueId]: Math.max(current, targetBuild) };
+                });
+            }
+            setBlockIssue(null);
+            setBlockReason('');
+        } catch (e) {
+            console.error('Failed to block issue', e);
+            setBlockError('Failed to mark issue blocked. Check your token and try again.');
+            setIssueActionError('Failed to mark issue blocked. Check your token and try again.');
+        } finally {
+            setBlockSaving(false);
+            endIssueAction(issueId);
+        }
     };
 
     // --- AI Analysis Handler ---
@@ -736,7 +1096,7 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
         setPrProcessing(pr.id);
         setPrError('');
         try {
-            if (pr.isDraft) await githubService.updatePR(repo.owner, repo.name, pr.number, { isDraft: false });
+            if (pr.isDraft) await githubService.markReadyForReview(repo.owner, repo.name, pr.number);
             await githubService.approvePR(repo.owner, repo.name, pr.number);
             await githubService.mergePR(repo.owner, repo.name, pr.number);
             setPrs(prev => prev.filter(p => p.id !== pr.id));
@@ -801,7 +1161,7 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
     };
 
     if (!repo) return <div className="p-10 text-center">Please select a repository.</div>;
-    if (!repo.githubToken) return <div className="p-10 text-center">Missing GitHub Token for this repo. Please configure it.</div>;
+    if (!activeToken) return <div className="p-10 text-center">Missing GitHub token. Configure a global token or enable a repo token.</div>;
 
     return (
         <div className="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden pb-24">
@@ -815,10 +1175,21 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{repo?.displayName || repo?.name}</p>
                     </div>
                 </div>
-                <div className="flex items-center bg-gray-200 dark:bg-surface-dark-lighter rounded-lg p-0.5 border border-transparent dark:border-white/10">
-                    <button onClick={() => setTab('issues')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'issues' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Issues</button>
-                    <button onClick={() => setTab('prs')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'prs' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>PRs</button>
-                    <button onClick={() => setTab('tests')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'tests' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Tests</button>
+                <div className="flex items-center gap-2">
+                    <a
+                        href={ownerProjectsUrl || `https://github.com/${repo.owner}/${repo.name}/projects`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-[#253827] px-2.5 py-1.5 text-[10px] sm:text-[11px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors"
+                    >
+                        <span className="material-symbols-outlined text-[14px]">dashboard</span>
+                        Projects
+                    </a>
+                    <div className="flex items-center bg-gray-200 dark:bg-surface-dark-lighter rounded-lg p-0.5 border border-transparent dark:border-white/10">    
+                        <button onClick={() => setTab('issues')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'issues' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Issues</button>
+                        <button onClick={() => setTab('prs')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'prs' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>PRs</button>
+                        <button onClick={() => setTab('tests')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'tests' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Tests</button>
+                    </div>
                 </div>
             </header>
 
@@ -828,7 +1199,7 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => setBuildNumber(e.target.value)}/>
+                            <input className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
@@ -851,8 +1222,16 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                     </div>
                     <div className="flex-1 space-y-1.5">
                          <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">App Variant</label>
-                         <select className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg h-[54px] px-3 font-medium text-sm text-slate-900 dark:text-white focus:ring-primary focus:border-primary">
-                             {repo?.apps.map(app => <option key={app.id} value={app.id}>{app.name} ({app.platform})</option>)}
+                         <select
+                             value={activeApp?.id || ''}
+                             onChange={(e) => setActiveAppId(e.target.value)}
+                             className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg h-[54px] px-3 font-medium text-sm text-slate-900 dark:text-white focus:ring-primary focus:border-primary"
+                         >
+                             {repo?.apps.map(app => (
+                                 <option key={app.id} value={app.id}>
+                                     {app.name} ({app.platform})
+                                 </option>
+                             ))}
                          </select>
                     </div>
                  </div>
@@ -872,6 +1251,7 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                 {!loading && tab === 'issues' && (
                     <>
                         {syncError && <div className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 text-xs px-3 py-2">{syncError}</div>}
+                        {issueActionError && <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 text-xs px-3 py-2">{issueActionError}</div>}
                         <div className="flex justify-between items-center pb-1">
                              <h2 className="text-sm font-bold text-slate-900 dark:text-white">Pending Verification</h2>
                              <span className="text-[11px] text-gray-400">{issues.length} remaining</span>
@@ -879,7 +1259,9 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                         {issues.length === 0 ? (
                             <div className="text-center py-10 opacity-50"><span className="material-symbols-outlined text-6xl text-gray-600">check_circle</span><p className="mt-4 text-gray-400">All cleared for build {buildNumber}!</p></div>
                         ) : (
-                            issues.map(issue => (
+                            issues.map(issue => {
+                                const isIssueBusy = issueActionIds.has(issue.id);
+                                return (
                                 <article key={issue.id} className="relative flex flex-col gap-1.5 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-2 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
                                     <div className="flex items-start justify-between gap-2.5">
                                         <div className="flex flex-col gap-1">
@@ -910,9 +1292,9 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                                     )}
 
                                     <div className="grid grid-cols-4 gap-1.5 mt-0.5">
-                                        <button onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
-                                        <button onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>
-                                        <Link to={`/block/${issue.id}`} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</Link>
+                                        <button disabled={isIssueBusy} onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
+                                        <button disabled={isIssueBusy} onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>   
+                                        <button disabled={isIssueBusy} onClick={() => openBlockPrompt(issue)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</button>
                                         <button 
                                             onClick={() => handleAnalyze(issue)} 
                                             disabled={analyzingIds.has(issue.id)}
@@ -927,7 +1309,8 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                                         </button>
                                     </div>
                                 </article>
-                            ))
+                                );
+                            })
                         )}
                     </>
                 )}
@@ -1072,21 +1455,51 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                     </div>
                 )}
             </main>
-            <Link to={`/quick-issue?repo=${repo?.id}`} aria-label="Create new issue" className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-[0_4px_16px_rgba(19,236,37,0.4)] active:scale-90 transition-transform hover:scale-105"><span className="material-symbols-outlined text-3xl">add</span></Link>
+            <Link to={`/quick-issue?repo=${repo?.id}&build=${encodeURIComponent(buildNumber)}`} aria-label="Create new issue" className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-[0_4px_16px_rgba(19,236,37,0.4)] active:scale-90 transition-transform hover:scale-105"><span className="material-symbols-outlined text-3xl">add</span></Link>
             <BottomNav onNotesClick={onNotesClick} />
+            {blockIssue && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-xl border border-white/10 bg-surface-dark p-5 text-white shadow-2xl">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold">Block Issue #{blockIssue.number}</h3>
+                            <button onClick={() => setBlockIssue(null)} aria-label="Close block dialog" className="rounded-full p-1 hover:bg-white/10">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-400">Optional reason (saved to the issue as a comment).</p>
+                        <textarea
+                            value={blockReason}
+                            onChange={(e) => setBlockReason(e.target.value)}
+                            className="mt-3 w-full min-h-[120px] rounded-lg bg-input-dark p-3 text-sm text-white"
+                            placeholder="e.g. Waiting on backend fix / missing access"
+                        />
+                        {blockError && <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{blockError}</div>}
+                        <div className="mt-4 flex items-center justify-end gap-2">
+                            <button onClick={() => setBlockIssue(null)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-200 hover:bg-white/10">Cancel</button>
+                            <button onClick={handleBlocked} disabled={blockSaving} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                                {blockSaving ? 'Blocking...' : 'Mark Blocked'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 // 4. Issue Detail Page
-const IssueDetailPage = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick: () => void }) => {
+const IssueDetailPage = ({ repos, globalSettings, onNotesClick }: { repos: Repository[], globalSettings: GlobalSettings, onNotesClick: () => void }) => {
     const navigate = useNavigate();
     const { repoId, issueNumber } = useParams();
     const repo = repos.find(r => r.id === repoId);
+    const token = repo ? resolveGithubToken(repo, globalSettings) : '';
     const [issue, setIssue] = useState<Issue | null>(null);
     const [comments, setComments] = useState<Comment[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [commentDraft, setCommentDraft] = useState('');
+    const [commentSaving, setCommentSaving] = useState(false);
+    const [commentError, setCommentError] = useState('');
 
     useEffect(() => {
         let isMounted = true;
@@ -1096,8 +1509,8 @@ const IssueDetailPage = ({ repos, onNotesClick }: { repos: Repository[], onNotes
                 setLoading(false);
                 return;
             }
-            if (!repo.githubToken) {
-                setError('Missing GitHub token for this repo.');
+            if (!token) {
+                setError('Missing GitHub token. Configure a global or repo token.');
                 setLoading(false);
                 return;
             }
@@ -1111,7 +1524,7 @@ const IssueDetailPage = ({ repos, onNotesClick }: { repos: Repository[], onNotes
             setLoading(true);
             setError('');
             try {
-                githubService.initialize(repo.githubToken);
+                githubService.initialize(token);
                 const issueData = await githubService.getIssue(repo.owner, repo.name, number);
                 const rawComments = await githubService.getIssueComments(repo.owner, repo.name, number);
                 const mappedComments = (rawComments || []).map((c: any) => ({
@@ -1136,7 +1549,32 @@ const IssueDetailPage = ({ repos, onNotesClick }: { repos: Repository[], onNotes
         return () => {
             isMounted = false;
         };
-    }, [repoId, issueNumber, repo?.githubToken]);
+    }, [repoId, issueNumber, token]);
+
+    const handleAddComment = async () => {
+        if (!repo || !token || !issue) return;
+        const text = commentDraft.trim();
+        if (!text) return;
+        setCommentSaving(true);
+        setCommentError('');
+        try {
+            githubService.initialize(token);
+            await githubService.addComment(repo.owner, repo.name, issue.number, text);
+            const rawComments = await githubService.getIssueComments(repo.owner, repo.name, issue.number);
+            const mappedComments = (rawComments || []).map((c: any) => ({
+                id: String(c.id),
+                text: c.body || ''
+            }));
+            setComments(mappedComments);
+            setIssue(prev => prev ? { ...prev, comments: mappedComments, commentsCount: mappedComments.length } : prev);
+            setCommentDraft('');
+        } catch (e) {
+            console.error('Failed to add comment', e);
+            setCommentError('Failed to add comment. Check your token and try again.');
+        } finally {
+            setCommentSaving(false);
+        }
+    };
 
     return (
         <div className="relative flex h-full min-h-screen w-full flex-col overflow-hidden pb-24">
@@ -1186,6 +1624,24 @@ const IssueDetailPage = ({ repos, onNotesClick }: { repos: Repository[], onNotes
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Comments</h3>
                                 <span className="text-[11px] text-gray-400">{comments.length} total</span>
                             </div>
+                            <div className="space-y-2">
+                                <textarea
+                                    value={commentDraft}
+                                    onChange={(e) => setCommentDraft(e.target.value)}
+                                    className="w-full min-h-[120px] rounded-lg bg-gray-50 dark:bg-black/30 p-3 text-sm text-gray-700 dark:text-gray-200"
+                                    placeholder="Add a comment..."
+                                />
+                                {commentError && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{commentError}</div>}
+                                <div className="flex justify-end">
+                                    <button
+                                        onClick={handleAddComment}
+                                        disabled={commentSaving || !commentDraft.trim()}
+                                        className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-black disabled:opacity-50"
+                                    >
+                                        {commentSaving ? 'Posting...' : 'Post Comment'}
+                                    </button>
+                                </div>
+                            </div>
                             {comments.length === 0 ? (
                                 <p className="text-xs text-gray-500">No comments yet.</p>
                             ) : (
@@ -1207,25 +1663,41 @@ const IssueDetailPage = ({ repos, onNotesClick }: { repos: Repository[], onNotes
 };
 
 // 4. Quick Issue Overlay (Unchanged from previous logic, just receiving props)
-const QuickIssuePage = ({ repos }: { repos: Repository[] }) => {
+const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; globalSettings: GlobalSettings }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const repoId = searchParams.get('repo');
+    const buildParam = searchParams.get('build') || '';
     const repo = repos.find(r => r.id === repoId) || repos[0];
+    const token = repo ? resolveGithubToken(repo, globalSettings) : '';
     const [title, setTitle] = useState('');
     const [desc, setDesc] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [buildNumber, setBuildNumber] = useState(buildParam || repo?.apps[0]?.buildNumber || '');
+
+    useEffect(() => {
+        setBuildNumber(buildParam || repo?.apps[0]?.buildNumber || '');
+    }, [buildParam, repo?.id, repo?.apps]);
 
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!repo?.githubToken) {
-            alert("No GitHub token configured for this repository.");
+        if (!repo || !token) {
+            alert("No GitHub token configured. Add a global or repo token.");
             return;
         }
         setIsSubmitting(true);
         try {
-            githubService.initialize(repo.githubToken);
-            await githubService.createIssue(repo.id, { title, description: desc, labels: [] }, repo.owner, repo.name);
+            githubService.initialize(token);
+            const created = await githubService.createIssue(repo.id, { title, description: desc, labels: [] }, repo.owner, repo.name);
+            const tag = (buildNumber || '').trim();
+            if (tag) {
+                try {
+                    await githubService.addComment(repo.owner, repo.name, created.number, `open v${tag}`);
+                } catch (commentError) {
+                    console.error('Failed to add build comment', commentError);
+                    alert("Issue created, but failed to add the build comment.");
+                }
+            }
             setTitle('');
             setDesc('');
             alert("Issue created successfully!");
@@ -1244,6 +1716,15 @@ const QuickIssuePage = ({ repos }: { repos: Repository[] }) => {
                  <div className="px-6 py-2 flex justify-between"><h2 className="text-white text-2xl font-bold">New Issue</h2><button onClick={() => navigate(-1)} aria-label="Close" className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white"><span className="material-symbols-outlined">close</span></button></div>
                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
                       <div className="space-y-1">
+                          <label className="text-xs uppercase font-bold text-gray-500">Found in Build</label>
+                          <input
+                              value={buildNumber}
+                              onChange={(e) => setBuildNumber(e.target.value)}
+                              className="w-full bg-input-dark rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-primary focus:border-primary"
+                              placeholder="e.g. 10"
+                          />
+                      </div>
+                      <div className="space-y-1">
                           <label htmlFor="quick-issue-title" className="text-xs uppercase font-bold text-gray-500">Title</label>
                           <input id="quick-issue-title" value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg focus:ring-primary focus:border-primary" placeholder="Title" autoFocus required />
                       </div>
@@ -1258,14 +1739,14 @@ const QuickIssuePage = ({ repos }: { repos: Repository[] }) => {
     );
 };
 
-// ... BlockPromptPage and ConflictPage remain as UI stubs ...
-const BlockPromptPage = () => { const navigate = useNavigate(); return <div onClick={()=>navigate(-1)} className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center"><div className="bg-surface-dark p-6 rounded-xl border border-white/10 text-white">Issue Blocked. <br/><span className="text-sm text-gray-400">(Tap to dismiss)</span></div></div> };
+// ... ConflictPage remains as a UI stub ...
 const ConflictPage = () => { const navigate = useNavigate(); return <div className="h-screen bg-background-dark text-white p-6"><button onClick={()=>navigate(-1)} className="mb-4 text-primary">Back</button><h1>Conflicts</h1><p>Manual resolution required.</p></div> };
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [repos, setRepos] = useState<Repository[]>([]);
+  const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({});
   const [notesOpen, setNotesOpen] = useState(false);
 
   useEffect(() => {
@@ -1285,9 +1766,15 @@ const App = () => {
   useEffect(() => {
     if (user) {
         const unsubscribe = firebaseService.subscribeToRepos(user.uid, (data) => {
-            setRepos(data);
+            setRepos(normalizeRepos(data));
         });
-        return () => unsubscribe();
+        const unsubscribeGlobal = firebaseService.subscribeToGlobalSettings(user.uid, (data) => {
+            setGlobalSettings(data || {});
+        });
+        return () => {
+            unsubscribe();
+            unsubscribeGlobal();
+        };
     }
   }, [user]);
 
@@ -1300,12 +1787,11 @@ const App = () => {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<HomePage repos={repos} user={user} onNotesClick={() => setNotesOpen(true)} />} />
-        <Route path="/dashboard" element={<Dashboard repos={repos} onNotesClick={() => setNotesOpen(true)} />} />
-        <Route path="/issue/:repoId/:issueNumber" element={<IssueDetailPage repos={repos} onNotesClick={() => setNotesOpen(true)} />} />
-        <Route path="/config" element={<ConfigurationPage repos={repos} setRepos={setRepos} user={user} />} />
-        <Route path="/quick-issue" element={<QuickIssuePage repos={repos} />} />
-        <Route path="/block/:id" element={<BlockPromptPage />} />
+        <Route path="/" element={<HomePage repos={repos} user={user} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />} />
+        <Route path="/dashboard" element={<Dashboard repos={repos} user={user} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />} />
+        <Route path="/issue/:repoId/:issueNumber" element={<IssueDetailPage repos={repos} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />} />
+        <Route path="/config" element={<ConfigurationPage repos={repos} setRepos={setRepos} user={user} globalSettings={globalSettings} setGlobalSettings={setGlobalSettings} />} />
+        <Route path="/quick-issue" element={<QuickIssuePage repos={repos} globalSettings={globalSettings} />} />
         <Route path="/conflicts" element={<ConflictPage />} />
       </Routes>
       {user && <Notes isOpen={notesOpen} onClose={() => setNotesOpen(false)} userId={user.uid} />}

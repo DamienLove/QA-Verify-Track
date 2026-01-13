@@ -43,7 +43,7 @@ class QuickIssueViewModel : ViewModel() {
         }
     }
 
-    fun createIssue(title: String, description: String, labels: List<String>) {
+    fun createIssue(title: String, description: String, labels: List<String>, buildNumber: String?) {
         val repo = _repo.value
         if (repo == null) {
             _error.value = "Repository not selected."
@@ -60,7 +60,14 @@ class QuickIssueViewModel : ViewModel() {
             val result = withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(repo.githubToken)
                 runCatching {
-                    gitHubRepository.createIssue(repo.owner, repo.name, title, description, labels)
+                    val created = gitHubRepository.createIssue(repo.owner, repo.name, title, description, labels)
+                    val tag = buildNumber?.trim().orEmpty()
+                    if (tag.isNotBlank()) {
+                        val added = gitHubRepository.addComment(repo.owner, repo.name, created.number, "open v$tag")
+                        if (!added) {
+                            throw IllegalStateException("Issue created, but failed to add build comment.")
+                        }
+                    }
                 }
             }
             _isLoading.value = false

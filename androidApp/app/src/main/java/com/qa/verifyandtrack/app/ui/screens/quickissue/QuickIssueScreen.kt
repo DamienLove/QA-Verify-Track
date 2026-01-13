@@ -36,18 +36,36 @@ import com.qa.verifyandtrack.app.ui.viewmodel.QuickIssueViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuickIssueScreen(navController: NavHostController, repoId: String?, viewModel: QuickIssueViewModel = viewModel()) {
+fun QuickIssueScreen(
+    navController: NavHostController,
+    repoId: String?,
+    buildNumber: String?,
+    viewModel: QuickIssueViewModel = viewModel()
+) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var buildNumberInput by remember { mutableStateOf(buildNumber ?: "") }
     val selectedLabels = remember { mutableStateListOf<String>() }
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val success by viewModel.success.collectAsState()
+    val repo by viewModel.repo.collectAsState()
 
     val labelOptions = listOf("bug", "feature", "ui", "high", "medium", "low")
 
     LaunchedEffect(repoId) {
         viewModel.setRepoId(repoId)
+    }
+
+    LaunchedEffect(buildNumber, repo?.apps) {
+        if (!buildNumber.isNullOrBlank()) {
+            buildNumberInput = buildNumber
+        } else if (buildNumberInput.isBlank()) {
+            val defaultBuild = repo?.apps?.firstOrNull()?.buildNumber
+            if (!defaultBuild.isNullOrBlank()) {
+                buildNumberInput = defaultBuild
+            }
+        }
     }
 
     LaunchedEffect(success) {
@@ -66,6 +84,13 @@ fun QuickIssueScreen(navController: NavHostController, repoId: String?, viewMode
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            OutlinedTextField(
+                value = buildNumberInput,
+                onValueChange = { buildNumberInput = it },
+                label = { Text("Found in Build") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -101,7 +126,7 @@ fun QuickIssueScreen(navController: NavHostController, repoId: String?, viewMode
                     Text("Cancel")
                 }
                 Button(
-                    onClick = { viewModel.createIssue(title.trim(), description.trim(), selectedLabels.toList()) },
+                    onClick = { viewModel.createIssue(title.trim(), description.trim(), selectedLabels.toList(), buildNumberInput) },
                     enabled = !isLoading && title.isNotBlank()
                 ) {
                     Text(if (isLoading) "Creating..." else "Create")

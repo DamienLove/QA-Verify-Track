@@ -136,14 +136,21 @@ private fun Any?.toRepoList(): List<Repo> {
             githubToken = map["githubToken"] as? String,
             useCustomToken = map["useCustomToken"] as? Boolean ?: false,
             avatarUrl = map["avatarUrl"] as? String,
-            apps = (map["apps"] as? List<*>)?.mapNotNull { app ->
-                val a = app as? Map<*, *> ?: return@mapNotNull null
+            apps = (map["apps"] as? List<*>)?.mapIndexedNotNull { index, app ->
+                val a = app as? Map<*, *> ?: return@mapIndexedNotNull null
+                val rawBuild = a["buildNumber"]
+                val buildNumber = when (rawBuild) {
+                    is String -> rawBuild.trim().ifBlank { "1" }
+                    is Number -> rawBuild.toString()
+                    else -> "1"
+                }
+                val appId = (a["id"] as? String)?.takeIf { it.isNotBlank() } ?: "app-$index"
                 AppConfig(
-                    id = a["id"] as? String ?: "",
+                    id = appId,
                     name = a["name"] as? String ?: "",
                     platform = a["platform"] as? String ?: "android",
                     playStoreUrl = a["playStoreUrl"] as? String,
-                    buildNumber = (a["buildNumber"] as? String) ?: "1"
+                    buildNumber = buildNumber
                 )
             } ?: emptyList(),
             isConnected = map["isConnected"] as? Boolean ?: true,

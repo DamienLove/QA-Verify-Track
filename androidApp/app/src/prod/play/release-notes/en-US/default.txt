@@ -1,6 +1,6 @@
-Version 3.2 (7)
-- Issue titles open a full issue detail view (web + Android).
-- Config repos now open a detail screen to manage apps.
-- Draft PRs: Ready action + clearer merge errors.
-- Notes moved into bottom navigation; removed floating overlap.
-- Repo cards now show open issue/PR counts; removed redundant todos list.
+Version 10 (10)
+- Quick issues now prefill build numbers and auto-tag open vX (web + Android).
+- Verify-fix comments now drive build filtering for issue visibility.
+- Android issue detail screen now supports adding comments.
+- Web dashboard build number changes now persist to your repo settings.
+- Added global GitHub PAT support with per-repo toggle (web).

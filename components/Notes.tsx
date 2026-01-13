@@ -6,10 +6,15 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
 
   useEffect(() => {
     if (isOpen) {
-      const savedNotes = localStorage.getItem(storageKey);
-      if (savedNotes) {
-        setNotes(savedNotes);
-      } else {
+      try {
+        const savedNotes = localStorage.getItem(storageKey);
+        if (savedNotes) {
+          setNotes(savedNotes);
+        } else {
+          setNotes('');
+        }
+      } catch (e) {
+        console.error('Unable to read notes from local storage', e);
         setNotes('');
       }
     }
@@ -18,7 +23,11 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setNotes(newValue);
-    localStorage.setItem(storageKey, newValue);
+    try {
+      localStorage.setItem(storageKey, newValue);
+    } catch (e) {
+      console.error('Unable to save notes to local storage', e);
+    }
   };
 
   if (!isOpen) {

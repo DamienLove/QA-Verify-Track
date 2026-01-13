@@ -10,6 +10,7 @@ data class PullRequestDetail(
     val id: Long = 0,
     val number: Int = 0,
     val title: String = "",
+    val nodeId: String = "",
     val mergeable: Boolean? = null,
     val mergeableState: String? = null,
     val isDraft: Boolean = false,

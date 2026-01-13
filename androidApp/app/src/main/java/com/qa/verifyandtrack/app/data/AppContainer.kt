@@ -14,9 +14,9 @@ object AppContainer {
     private val gitHubService = GitHubService()
     private val aiService = AIService()
 
-    val authRepository = AuthRepository(firebaseService)
-    val repoRepository = RepoRepository(firebaseService)
     val userProfileRepository = UserProfileRepository(firebaseService)
+    val authRepository = AuthRepository(firebaseService, userProfileRepository)
+    val repoRepository = RepoRepository(firebaseService)
     val gitHubRepository = GitHubRepository(gitHubService)
     val aiRepository = AIRepository(aiService)
 

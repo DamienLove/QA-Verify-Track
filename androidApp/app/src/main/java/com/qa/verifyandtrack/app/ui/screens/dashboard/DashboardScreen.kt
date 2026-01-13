@@ -34,6 +34,8 @@ import com.qa.verifyandtrack.app.ui.viewmodel.DashboardViewModel
 fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel: DashboardViewModel = viewModel()) {
     val repo by viewModel.repo.collectAsState()
     val issues by viewModel.issues.collectAsState()
+    val issueBuildMap by viewModel.issueBuildMap.collectAsState()
+    val issueVerifyFixMap by viewModel.issueVerifyFixMap.collectAsState()
     val pullRequests by viewModel.pullRequests.collectAsState()
     val selectedBuild by viewModel.selectedBuild.collectAsState()
     val activeTab by viewModel.activeTab.collectAsState()
@@ -81,7 +83,7 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
             FloatingActionButton(
                 onClick = {
                     repoId?.let { id ->
-                        navController.navigate(Screen.QuickIssue.createRoute(id))
+                        navController.navigate(Screen.QuickIssue.createRoute(id, selectedBuild))
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.primary
@@ -181,11 +183,7 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                 } else {
                     when (activeTab) {
                         DashboardTab.Issues -> {
-                            val filtered = if (selectedBuild.isNullOrBlank()) {
-                                issues
-                            } else {
-                                issues.filter { it.description.contains(selectedBuild.orEmpty(), ignoreCase = true) }
-                            }
+                            val filtered = filterIssuesForBuild(issues, selectedBuild, issueBuildMap, issueVerifyFixMap)
                             if (filtered.isEmpty()) {
                                 item { EmptyState(if (issues.isEmpty()) "No open issues found." else "No issues match this build.") }
                             } else {
@@ -197,11 +195,11 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                                             viewModel.onIssueAction(activity, adService)
                                         },
                                         onReopen = {
-                                            viewModel.markIssueOpen(issue.number)
+                                            viewModel.markIssueOpen(issue.number, selectedBuild ?: "")
                                             viewModel.onIssueAction(activity, adService)
                                         },
                                         onBlock = {
-                                            viewModel.blockIssue(issue.number, "Blocked from dashboard")
+                                            viewModel.blockIssue(issue.number, "Blocked from dashboard", selectedBuild ?: "")
                                             viewModel.onIssueAction(activity, adService)
                                         },
                                         onAnalyze = {
@@ -343,5 +341,34 @@ fun StatItem(label: String, value: String, color: androidx.compose.ui.graphics.C
             fontWeight = FontWeight.Bold
         )
         Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+private fun parseBuildNumber(value: String?): Int? {
+    if (value.isNullOrBlank()) return null
+    val match = Regex("(\\d+)").find(value) ?: return null
+    return match.value.toIntOrNull()
+}
+
+private fun filterIssuesForBuild(
+    issues: List<com.qa.verifyandtrack.app.data.model.Issue>,
+    build: String?,
+    buildMap: Map<Int, Int>,
+    verifyFixMap: Map<Int, Int>
+): List<com.qa.verifyandtrack.app.data.model.Issue> {
+    val targetBuild = parseBuildNumber(build)
+    return issues.filter { issue ->
+        val verifyBuild = verifyFixMap[issue.number]
+        val statusBuild = buildMap[issue.number]
+        if (targetBuild == null) {
+            return@filter verifyBuild != null || statusBuild == null
+        }
+        if (verifyBuild != null && verifyBuild <= targetBuild) {
+            return@filter true
+        }
+        if (statusBuild != null) {
+            return@filter false
+        }
+        true
     }
 }

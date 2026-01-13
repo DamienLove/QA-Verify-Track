@@ -35,6 +35,12 @@ class DashboardViewModel : ViewModel() {
     private val _issues = MutableStateFlow<List<Issue>>(emptyList())
     val issues: StateFlow<List<Issue>> = _issues
 
+    private val _issueBuildMap = MutableStateFlow<Map<Int, Int>>(emptyMap())
+    val issueBuildMap: StateFlow<Map<Int, Int>> = _issueBuildMap
+
+    private val _issueVerifyFixMap = MutableStateFlow<Map<Int, Int>>(emptyMap())
+    val issueVerifyFixMap: StateFlow<Map<Int, Int>> = _issueVerifyFixMap
+
     private val _pullRequests = MutableStateFlow<List<PullRequest>>(emptyList())
     val pullRequests: StateFlow<List<PullRequest>> = _pullRequests
 
@@ -60,6 +66,9 @@ class DashboardViewModel : ViewModel() {
     val showPaywall: StateFlow<String?> = _showPaywall
 
     private var issueActionCount = 0
+
+    private val statusRegex = Regex("\\b(open|closed|blocked|fixed)\\b[^\\d]*(?:build\\s*)?v?\\s*(\\d+)\\b", RegexOption.IGNORE_CASE)
+    private val verifyFixRegex = Regex("\\bverify\\s*fix\\b[^\\d]*v?\\s*(\\d+)\\b", RegexOption.IGNORE_CASE)
 
     init {
         // Observe user profile changes
@@ -117,11 +126,52 @@ class DashboardViewModel : ViewModel() {
             _error.value = null
             withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(token)
-                _issues.value = gitHubRepository.getIssues(repo.owner, repo.name, "open")
-                _pullRequests.value = gitHubRepository.getPullRequests(repo.owner, repo.name)
+                val fetchedIssues = gitHubRepository.getIssues(repo.owner, repo.name, "open")
+                val fetchedPulls = gitHubRepository.getPullRequests(repo.owner, repo.name)
+                val (statusMap, verifyFixMap) = buildIssueStatusMaps(repo, fetchedIssues)
+                _issues.value = fetchedIssues
+                _pullRequests.value = fetchedPulls
+                _issueBuildMap.value = statusMap
+                _issueVerifyFixMap.value = verifyFixMap
             }
             _isLoading.value = false
         }
+    }
+
+    private suspend fun buildIssueStatusMaps(repo: Repository, issues: List<Issue>): Pair<Map<Int, Int>, Map<Int, Int>> {
+        val statusMap = mutableMapOf<Int, Int>()
+        val verifyFixMap = mutableMapOf<Int, Int>()
+        issues.forEach { issue ->
+            if (issue.commentsCount <= 0) return@forEach
+            val comments = runCatching {
+                gitHubRepository.getIssueComments(repo.owner, repo.name, issue.number, issue.updatedAt)
+            }.getOrDefault(emptyList())
+            val maxStatusBuild = extractMaxBuild(comments, statusRegex, 2)
+            val maxVerifyBuild = extractMaxBuild(comments, verifyFixRegex, 1)
+            if (maxStatusBuild != null) {
+                statusMap[issue.number] = maxStatusBuild
+            }
+            if (maxVerifyBuild != null) {
+                verifyFixMap[issue.number] = maxVerifyBuild
+            }
+        }
+        return Pair(statusMap, verifyFixMap)
+    }
+
+    private fun extractMaxBuild(
+        comments: List<com.qa.verifyandtrack.app.data.model.Comment>,
+        regex: Regex,
+        groupIndex: Int
+    ): Int? {
+        var maxBuild = -1
+        comments.forEach { comment ->
+            val body = comment.text
+            regex.findAll(body).forEach { match ->
+                val build = match.groupValues.getOrNull(groupIndex)?.toIntOrNull() ?: return@forEach
+                if (build > maxBuild) maxBuild = build
+            }
+        }
+        return if (maxBuild >= 0) maxBuild else null
     }
 
     fun markIssueFixed(issueNumber: Int, buildNumber: String) {
@@ -129,33 +179,60 @@ class DashboardViewModel : ViewModel() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(repo.githubToken ?: "")
-                if (buildNumber.isNotBlank()) {
-                    gitHubRepository.addComment(repo.owner, repo.name, issueNumber, "Fixed in build $buildNumber")
+                val tag = buildNumber.trim()
+                val status = if (tag.isNotBlank()) "fixed v$tag" else "fixed"
+                runCatching {
+                    gitHubRepository.addComment(repo.owner, repo.name, issueNumber, status)
+                }.onFailure { error ->
+                    _error.value = error.message ?: "Failed to add build comment."
                 }
-                gitHubRepository.updateIssueStatus(repo.owner, repo.name, issueNumber, "closed")
+                runCatching {
+                    gitHubRepository.updateIssueStatus(repo.owner, repo.name, issueNumber, "closed")
+                }.onFailure { error ->
+                    _error.value = error.message ?: "Failed to close issue."
+                }
             }
             syncGitHub()
         }
     }
 
-    fun markIssueOpen(issueNumber: Int) {
+    fun markIssueOpen(issueNumber: Int, buildNumber: String) {
         val repo = _repo.value ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(repo.githubToken ?: "")
-                gitHubRepository.updateIssueStatus(repo.owner, repo.name, issueNumber, "open")
+                val tag = buildNumber.trim()
+                val status = if (tag.isNotBlank()) "open v$tag" else "open"
+                runCatching {
+                    gitHubRepository.addComment(repo.owner, repo.name, issueNumber, status)
+                }.onFailure { error ->
+                    _error.value = error.message ?: "Failed to add build comment."
+                }
+                runCatching {
+                    gitHubRepository.updateIssueStatus(repo.owner, repo.name, issueNumber, "open")
+                }.onFailure { error ->
+                    _error.value = error.message ?: "Failed to reopen issue."
+                }
             }
             syncGitHub()
         }
     }
 
-    fun blockIssue(issueNumber: Int, reason: String) {
+    fun blockIssue(issueNumber: Int, reason: String, buildNumber: String) {
         val repo = _repo.value ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(repo.githubToken ?: "")
-                gitHubRepository.addComment(repo.owner, repo.name, issueNumber, "Blocked: $reason")
+                val tag = buildNumber.trim()
+                val status = if (tag.isNotBlank()) "blocked v$tag" else "blocked"
+                val body = if (reason.isNotBlank()) "$status - $reason" else status
+                runCatching {
+                    gitHubRepository.addComment(repo.owner, repo.name, issueNumber, body)
+                }.onFailure { error ->
+                    _error.value = error.message ?: "Failed to block issue."
+                }
             }
+            syncGitHub()
         }
     }
 

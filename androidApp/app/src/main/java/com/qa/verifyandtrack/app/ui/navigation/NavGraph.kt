@@ -68,10 +68,18 @@ fun QAAppNavHost(
         }
         composable(
             route = Screen.QuickIssue.route,
-            arguments = listOf(navArgument("repoId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("repoId") { type = NavType.StringType },
+                navArgument("build") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
         ) { backStackEntry ->
             val repoId = backStackEntry.arguments?.getString("repoId")
-            QuickIssueScreen(navController = navController, repoId = repoId)
+            val build = backStackEntry.arguments?.getString("build")
+            QuickIssueScreen(navController = navController, repoId = repoId, buildNumber = build)
         }
         composable(Screen.Upgrade.route) {
             UpgradeScreen(navController = navController)

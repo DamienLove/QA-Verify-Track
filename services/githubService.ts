@@ -31,7 +31,18 @@ export const githubService = {
   initialize: (token: string) => {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
-  }, 
+  },
+
+  getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
+    const api = await getOctokit();
+    try {
+      const { data } = await api.users.getByUsername({ username: owner });
+      return data.type === 'Organization' ? 'Organization' : 'User';
+    } catch (e) {
+      console.error("Failed to fetch owner type", e);
+      return null;
+    }
+  },
 
   getIssueComments: async (owner: string, repo: string, issueNumber: number, lastUpdated?: string) => {
     const api = await getOctokit();
@@ -46,7 +57,7 @@ export const githubService = {
       }
     }
 
-    const { data } = await api.issues.listComments({
+    const data = await api.paginate(api.issues.listComments, {
       owner,
       repo,
       issue_number: issueNumber,
@@ -66,19 +77,19 @@ export const githubService = {
 
   getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open'): Promise<Issue[]> => {
     const api = await getOctokit();
-    
+
     try {
-      const response = await api.issues.listForRepo({
+      const response = await api.paginate(api.issues.listForRepo, {
         owner,
         repo,
         state,
         sort: 'updated',
         direction: 'desc',
-        per_page: 50
+        per_page: 100
       });
 
       // Filter out PRs as they are returned in issues endpoint too
-      return response.data
+      return response
         .filter((i: any) => !i.pull_request)
         .map((i: any) => ({
           id: i.id,
@@ -108,15 +119,16 @@ export const githubService = {
     const api = await getOctokit(token);
 
     try {
-      const response = await api.pulls.list({
+      const response = await api.paginate(api.pulls.list, {
         owner,
         repo,
         state: 'open',
         sort: 'updated',
-        direction: 'desc'
+        direction: 'desc',
+        per_page: 100
       });
-      
-      return response.data.map((pr: any) => ({
+
+      return response.map((pr: any) => ({
         id: pr.id,
         number: pr.number,
         title: pr.title,
@@ -129,7 +141,7 @@ export const githubService = {
         hasConflicts: false, // Default, client updates this via detailed check if needed
         isDraft: pr.draft,
         status: pr.draft ? 'draft' : 'open',
-        filesChanged: 0 
+        filesChanged: 0
       }));
     } catch (e) {
       console.error("Failed to fetch PRs", e);
@@ -267,6 +279,26 @@ export const githubService = {
           });
       }
 
+      return true;
+  },
+
+  markReadyForReview: async (owner: string, repo: string, pullNumber: number) => {
+      const api = await getOctokit();
+      const { data: pr } = await api.pulls.get({
+          owner,
+          repo,
+          pull_number: pullNumber
+      });
+
+      if (!pr.draft) {
+          return true;
+      }
+
+      const mutation = `mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { clientMutationId } }`;
+      await api.request('POST /graphql', {
+          query: mutation,
+          variables: { id: pr.node_id }
+      });
       return true;
   },
 

@@ -20,7 +20,7 @@ import {
     onSnapshot
 } from "firebase/firestore";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
-import { Repository } from "../types";
+import { GlobalSettings, Repository } from "../types";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -70,10 +70,25 @@ export const firebaseService = {
             }
         });
     },
+    subscribeToGlobalSettings: (userId: string, callback: (settings: GlobalSettings) => void) => {
+        const docRef = doc(db, "user_settings", userId);
+        return onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                callback(data.globalSettings || {});
+            } else {
+                callback({});
+            }
+        });
+    },
 
     // Save repository configuration
     saveUserRepos: async (userId: string, repos: Repository[]) => {
         const docRef = doc(db, "user_settings", userId);
         await setDoc(docRef, { repos }, { merge: true });
+    },
+    saveGlobalSettings: async (userId: string, settings: GlobalSettings) => {
+        const docRef = doc(db, "user_settings", userId);
+        await setDoc(docRef, { globalSettings: settings }, { merge: true });
     }
 };
