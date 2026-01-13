@@ -137,19 +137,23 @@ const HomePage = ({
         let isMounted = true;
         const fetchStats = async () => {
             const stats: Record<string, { issues: number; prs: number }> = {};
-            for (const repo of repos) {
-                if (!repo.githubToken) {
-                    continue;
-                }
+
+            await Promise.all(repos.map(async (repo) => {
+                if (!repo.githubToken) return;
+
                 try {
-                    githubService.initialize(repo.githubToken);
-                    const issues = await githubService.getOpenIssueCount(repo.owner, repo.name);
-                    const prs = await githubService.getPullRequests(repo.owner, repo.name);
-                    stats[repo.id] = { issues, prs: prs.length };
+                    // Use parallel fetching with explicit token to avoid singleton race conditions
+                    // Also use optimized count-only fetch for PRs instead of fetching full list
+                    const [issues, prCount] = await Promise.all([
+                        githubService.getOpenIssueCount(repo.owner, repo.name, repo.githubToken),
+                        githubService.getOpenPullRequestCount(repo.owner, repo.name, repo.githubToken)
+                    ]);
+                    stats[repo.id] = { issues, prs: prCount };
                 } catch (error) {
                     console.error(`Failed to fetch stats for ${repo.owner}/${repo.name}`, error);
                 }
-            }
+            }));
+
             if (isMounted) {
                 setRepoStats(stats);
             }

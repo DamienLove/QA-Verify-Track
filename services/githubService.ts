@@ -5,7 +5,11 @@ let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: any[] }>();
 
-const getOctokit = async (): Promise<Octokit> => {
+const getOctokit = async (token?: string): Promise<Octokit> => {
+  if (token) {
+    const { Octokit } = await import("@octokit/rest");
+    return new Octokit({ auth: token });
+  }
   if (octokit) return octokit;
   if (!currentToken) throw new Error("GitHub service not initialized. Please configure your token.");
 
@@ -100,8 +104,8 @@ export const githubService = {
     }
   },
 
-  getPullRequests: async (owner: string, repo: string): Promise<PullRequest[]> => {
-    const api = await getOctokit();
+  getPullRequests: async (owner: string, repo: string, token?: string): Promise<PullRequest[]> => {
+    const api = await getOctokit(token);
 
     try {
       const response = await api.pulls.list({
@@ -304,10 +308,18 @@ export const githubService = {
       }
   },
 
-  getOpenIssueCount: async (owner: string, repo: string): Promise<number> => {
-    const api = await getOctokit();
+  getOpenIssueCount: async (owner: string, repo: string, token?: string): Promise<number> => {
+    const api = await getOctokit(token);
     const response = await api.search.issuesAndPullRequests({
       q: `repo:${owner}/${repo} is:issue is:open`,
+    });
+    return response.data.total_count;
+  },
+
+  getOpenPullRequestCount: async (owner: string, repo: string, token?: string): Promise<number> => {
+    const api = await getOctokit(token);
+    const response = await api.search.issuesAndPullRequests({
+      q: `repo:${owner}/${repo} is:pr is:open`,
     });
     return response.data.total_count;
   }
