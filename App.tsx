@@ -1297,7 +1297,7 @@ const App = () => {
         <Route path="/block/:id" element={<BlockPromptPage />} />
         <Route path="/conflicts" element={<ConflictPage />} />
       </Routes>
-      <Notes isOpen={notesOpen} onClose={() => setNotesOpen(false)} />
+      {user && <Notes isOpen={notesOpen} onClose={() => setNotesOpen(false)} userId={user.uid} />}
     </HashRouter>
   );
 };
