@@ -1,6 +1,3 @@
-Version 10 (10)
-- Quick issues now prefill build numbers and auto-tag open vX (web + Android).
-- Verify-fix comments now drive build filtering for issue visibility.
-- Android issue detail screen now supports adding comments.
-- Web dashboard build number changes now persist to your repo settings.
-- Added global GitHub PAT support with per-repo toggle (web).
+Version 11 (11)
+- Dashboard Projects button now links to the repo-specific GitHub Projects page.
+- Removed creator attribution from the config footer.

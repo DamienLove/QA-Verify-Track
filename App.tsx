@@ -138,9 +138,6 @@ const LoginPage = () => {
                     </div>
                 </div>
 
-                <div className="text-center">
-                    <p className="text-xs text-gray-400 font-medium opacity-80">Created by Samian Nichols</p>
-                </div>
             </div>
         </div>
     );
@@ -503,9 +500,6 @@ const ConfigurationPage = ({
                         ))}
                     </section>
                 </main>
-                <div className="text-center p-4">
-                    <p className="text-xs text-gray-500 font-medium opacity-60">Created by Samian Nichols</p>
-                </div>
             </div>
         );
     }
@@ -690,7 +684,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const [tab, setTab] = useState<'issues' | 'prs' | 'tests'>('issues');
     const [activeAppId, setActiveAppId] = useState(repo?.apps[0]?.id || '');
     const [buildNumber, setBuildNumber] = useState(repo?.apps[0]?.buildNumber || '0');
-    const [ownerProjectsUrl, setOwnerProjectsUrl] = useState('');
     const activeApp = repo?.apps.find(app => app.id === activeAppId) || repo?.apps[0];
     const activeToken = repo ? resolveGithubToken(repo, globalSettings) : '';
 
@@ -734,31 +727,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             console.error("Failed to save build number", e);
         }
     };
-
-    useEffect(() => {
-        let isMounted = true;
-        const loadOwnerProjects = async () => {
-            if (!repo?.owner || !activeToken) {
-                setOwnerProjectsUrl('');
-                return;
-            }
-            githubService.initialize(activeToken);
-            const ownerType = await githubService.getOwnerType(repo.owner);
-            if (!isMounted) return;
-            if (ownerType === 'Organization') {
-                setOwnerProjectsUrl(`https://github.com/orgs/${repo.owner}/projects`);
-            } else if (ownerType === 'User') {
-                setOwnerProjectsUrl(`https://github.com/users/${repo.owner}/projects`);
-            } else {
-                setOwnerProjectsUrl('');
-            }
-        };
-
-        loadOwnerProjects();
-        return () => {
-            isMounted = false;
-        };
-    }, [repo?.id, repo?.owner, activeToken]);
 
     const handleSaveTests = async (updatedTests: any[]) => {
         if (!repo) return;
@@ -1177,7 +1145,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 </div>
                 <div className="flex items-center gap-2">
                     <a
-                        href={ownerProjectsUrl || `https://github.com/${repo.owner}/${repo.name}/projects`}
+                        href={repo ? `https://github.com/${repo.owner}/${repo.name}/projects` : '#'}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-[#253827] px-2.5 py-1.5 text-[10px] sm:text-[11px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors"
