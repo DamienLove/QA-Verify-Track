@@ -1,6 +1,6 @@
-Version 3.2 (6)
-- Draft PRs: added Ready action and clearer merge error handling.
+Version 3.2 (7)
+- Issue titles open a full issue detail view (web + Android).
+- Config repos now open a detail screen to manage apps.
+- Draft PRs: Ready action + clearer merge errors.
 - Notes moved into bottom navigation; removed floating overlap.
-- Repo cards now show open issue and PR counts; removed redundant todos list.
-- Web UI spacing compacted for issues/PRs/repos/tests.
-- Issue action button label clarified to "Fixed".
+- Repo cards now show open issue/PR counts; removed redundant todos list.

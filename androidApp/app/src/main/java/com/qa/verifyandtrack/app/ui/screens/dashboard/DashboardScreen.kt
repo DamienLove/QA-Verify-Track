@@ -211,6 +211,14 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                                                 viewModel.showPaywallFor("AI-Powered Analysis")
                                             }
                                         },
+                                        onIssueClick = {
+                                            val routeRepoId = repo?.id ?: repoId
+                                            if (!routeRepoId.isNullOrBlank()) {
+                                                navController.navigate(Screen.IssueDetail.createRoute(routeRepoId, issue.number))
+                                            } else {
+                                                viewModel.showError("Missing repository ID.")
+                                            }
+                                        },
                                         canUseAI = FeatureGates.canUseAIAnalysis(userProfile)
                                     )
                                 }

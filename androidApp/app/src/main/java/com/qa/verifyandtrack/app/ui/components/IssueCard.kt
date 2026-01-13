@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
@@ -44,6 +45,7 @@ fun IssueCard(
     onReopen: () -> Unit = {},
     onBlock: () -> Unit = {},
     onAnalyze: () -> Unit = {},
+    onIssueClick: (Issue) -> Unit = {},
     canUseAI: Boolean = false
 ) {
     QACard(modifier = Modifier.fillMaxWidth()) {
@@ -53,7 +55,9 @@ fun IssueCard(
                     text = issue.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onIssueClick(issue) }
                 )
                 Spacer(modifier = Modifier.width(Spacing.Small))
                 Text(

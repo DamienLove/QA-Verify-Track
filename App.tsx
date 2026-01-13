@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams, Navigate } from 'react-router-dom';
-import { Repository, AppConfig, Issue, PullRequest } from './types';
+import { HashRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams, Navigate, useParams } from 'react-router-dom';
+import { Repository, AppConfig, Issue, PullRequest, Comment } from './types';
 import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
@@ -885,9 +885,9 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
                                                 </span>
                                                 <span className="text-gray-500 dark:text-gray-500 text-[11px] font-medium">#{issue.number}</span>
                                             </div>
-                                            <a href={`https://github.com/${repo.owner}/${repo.name}/issues/${issue.number}`} target="_blank" rel="noopener noreferrer" className="text-base font-semibold text-slate-900 dark:text-white leading-snug hover:text-primary">
+                                            <Link to={`/issue/${repo.id}/${issue.number}`} className="text-base font-semibold text-slate-900 dark:text-white leading-snug hover:text-primary">
                                                 {issue.title}
-                                            </a>
+                                            </Link>
                                         </div>
                                     </div>
                                     <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-1.5">
@@ -1074,6 +1074,134 @@ const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick:
     );
 };
 
+// 4. Issue Detail Page
+const IssueDetailPage = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick: () => void }) => {
+    const navigate = useNavigate();
+    const { repoId, issueNumber } = useParams();
+    const repo = repos.find(r => r.id === repoId);
+    const [issue, setIssue] = useState<Issue | null>(null);
+    const [comments, setComments] = useState<Comment[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadIssue = async () => {
+            if (!repo) {
+                setError('Repository not found.');
+                setLoading(false);
+                return;
+            }
+            if (!repo.githubToken) {
+                setError('Missing GitHub token for this repo.');
+                setLoading(false);
+                return;
+            }
+            const number = Number(issueNumber);
+            if (!number) {
+                setError('Invalid issue number.');
+                setLoading(false);
+                return;
+            }
+
+            setLoading(true);
+            setError('');
+            try {
+                githubService.initialize(repo.githubToken);
+                const issueData = await githubService.getIssue(repo.owner, repo.name, number);
+                const rawComments = await githubService.getIssueComments(repo.owner, repo.name, number);
+                const mappedComments = (rawComments || []).map((c: any) => ({
+                    id: String(c.id),
+                    text: c.body || ''
+                }));
+                if (isMounted) {
+                    setIssue({ ...issueData, comments: mappedComments });
+                    setComments(mappedComments);
+                }
+            } catch (e) {
+                console.error('Failed to load issue', e);
+                if (isMounted) {
+                    setError('Failed to load issue details.');
+                }
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        loadIssue();
+        return () => {
+            isMounted = false;
+        };
+    }, [repoId, issueNumber, repo?.githubToken]);
+
+    return (
+        <div className="relative flex h-full min-h-screen w-full flex-col overflow-hidden pb-24">
+            <header className="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 px-4 py-3 flex items-center gap-3">
+                <button onClick={() => navigate(-1)} aria-label="Go back" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
+                    <span className="material-symbols-outlined text-slate-900 dark:text-white">arrow_back</span>
+                </button>
+                <div>
+                    <h1 className="text-lg font-bold leading-none tracking-tight">Issue Details</h1>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{repo?.displayName || repo?.name}</p>
+                </div>
+            </header>
+
+            <main className="flex-1 px-4 py-4 space-y-4">
+                {loading && <div className="text-center py-10"><div className="inline-block size-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>}
+                {!loading && error && (
+                    <div className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 text-xs px-3 py-2">{error}</div>
+                )}
+                {!loading && !error && issue && (
+                    <>
+                        <div className="bg-white dark:bg-surface-dark-lighter rounded-xl p-4 border border-gray-200 dark:border-white/10 space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs font-bold uppercase text-gray-500">#{issue.number}</span>
+                                        <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${issue.state === 'open' ? 'bg-primary/10 text-primary' : 'bg-gray-200 text-gray-600'}`}>{issue.state}</span>
+                                    </div>
+                                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">{issue.title}</h2>
+                                    <p className="text-xs text-gray-500 mt-1">Reported by {issue.reporter.name}</p>
+                                </div>
+                                <span className={`text-xs font-bold uppercase px-2 py-1 rounded ${issue.priority === 'critical' ? 'bg-red-500/10 text-red-500' : issue.priority === 'high' ? 'bg-orange-500/10 text-orange-500' : issue.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-green-500/10 text-green-500'}`}>{issue.priority}</span>
+                            </div>
+                            <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-3">
+                                <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{issue.description || 'No description provided.'}</p>
+                            </div>
+                            {issue.labels.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                    {issue.labels.map(label => (
+                                        <span key={label} className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">{label}</span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="bg-white dark:bg-surface-dark-lighter rounded-xl p-4 border border-gray-200 dark:border-white/10 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Comments</h3>
+                                <span className="text-[11px] text-gray-400">{comments.length} total</span>
+                            </div>
+                            {comments.length === 0 ? (
+                                <p className="text-xs text-gray-500">No comments yet.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {comments.map(comment => (
+                                        <div key={comment.id} className="bg-gray-50 dark:bg-black/30 rounded-lg p-3 text-sm text-gray-700 dark:text-gray-200">
+                                            {comment.text}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
+            </main>
+            <BottomNav onNotesClick={onNotesClick} />
+        </div>
+    );
+};
+
 // 4. Quick Issue Overlay (Unchanged from previous logic, just receiving props)
 const QuickIssuePage = ({ repos }: { repos: Repository[] }) => {
     const navigate = useNavigate();
@@ -1163,6 +1291,7 @@ const App = () => {
       <Routes>
         <Route path="/" element={<HomePage repos={repos} user={user} onNotesClick={() => setNotesOpen(true)} />} />
         <Route path="/dashboard" element={<Dashboard repos={repos} onNotesClick={() => setNotesOpen(true)} />} />
+        <Route path="/issue/:repoId/:issueNumber" element={<IssueDetailPage repos={repos} onNotesClick={() => setNotesOpen(true)} />} />
         <Route path="/config" element={<ConfigurationPage repos={repos} setRepos={setRepos} user={user} />} />
         <Route path="/quick-issue" element={<QuickIssuePage repos={repos} />} />
         <Route path="/block/:id" element={<BlockPromptPage />} />

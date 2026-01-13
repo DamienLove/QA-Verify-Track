@@ -133,6 +133,33 @@ export const githubService = {
     }
   },
 
+  getIssue: async (owner: string, repo: string, issueNumber: number): Promise<Issue> => {
+    const api = await getOctokit();
+    const { data } = await api.issues.get({
+      owner,
+      repo,
+      issue_number: issueNumber
+    });
+    return {
+      id: data.id,
+      number: data.number,
+      title: data.title,
+      description: data.body || '',
+      state: data.state,
+      priority: mapPriority(data.labels),
+      labels: (data.labels || []).map((l: any) => l.name),
+      type: (data.labels || []).find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui')?.name || 'bug',
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      commentsCount: data.comments,
+      reporter: {
+        name: data.user?.login || '',
+        avatar: data.user?.avatar_url || ''
+      },
+      comments: []
+    };
+  },
+
   // Get full details for a single PR, including mergeable state
   getPullRequest: async (owner: string, repo: string, pullNumber: number) => {
       const api = await getOctokit();

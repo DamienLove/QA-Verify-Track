@@ -15,8 +15,14 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector?
     data object Home : Screen("home", "Home", Icons.Filled.Home)
     data object Notes : Screen("notes", "Notes", Icons.Filled.Edit)
     data object Configuration : Screen("configuration", "Config", Icons.Filled.Settings)
+    data object RepoDetail : Screen("repoDetail/{repoId}", "Repo Detail") {
+        fun createRoute(repoId: String) = "repoDetail/$repoId"
+    }
     data object Dashboard : Screen("dashboard/{repoId}", "Dashboard", Icons.Filled.Dashboard) {
         fun createRoute(repoId: String) = "dashboard/$repoId"
+    }
+    data object IssueDetail : Screen("issueDetail/{repoId}/{issueNumber}", "Issue Detail") {
+        fun createRoute(repoId: String, issueNumber: Int) = "issueDetail/$repoId/$issueNumber"
     }
     data object QuickIssue : Screen("quickIssue/{repoId}", "Quick Issue", Icons.Filled.Build) {
         fun createRoute(repoId: String) = "quickIssue/$repoId"
