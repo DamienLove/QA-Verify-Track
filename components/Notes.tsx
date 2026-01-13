@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from 'react';
 
-const Notes = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => void; userId: string }) => {
   const [notes, setNotes] = useState('');
+  const storageKey = `notes_${userId}`;
 
   useEffect(() => {
-    const savedNotes = localStorage.getItem('global-notes');
-    if (savedNotes) {
-      setNotes(savedNotes);
+    if (isOpen) {
+      const savedNotes = localStorage.getItem(storageKey);
+      if (savedNotes) {
+        setNotes(savedNotes);
+      } else {
+        setNotes('');
+      }
     }
-  }, []);
+  }, [isOpen, userId, storageKey]);
 
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNotes(e.target.value);
-    localStorage.setItem('global-notes', e.target.value);
+    const newValue = e.target.value;
+    setNotes(newValue);
+    localStorage.setItem(storageKey, newValue);
   };
 
   if (!isOpen) {
