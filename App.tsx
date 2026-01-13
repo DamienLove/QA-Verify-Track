@@ -1212,7 +1212,8 @@ const QuickIssuePage = ({ repos }: { repos: Repository[] }) => {
     const [desc, setDesc] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         if (!repo?.githubToken) {
             alert("No GitHub token configured for this repository.");
             return;
@@ -1237,11 +1238,17 @@ const QuickIssuePage = ({ repos }: { repos: Repository[] }) => {
             <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col h-[90vh] bg-surface-dark rounded-t-[32px] shadow-2xl border-t border-white/10 animate-slide-up">
                  <div className="w-full flex justify-center pt-4 pb-2"><div className="w-14 h-1.5 bg-gray-600/40 rounded-full"></div></div>
                  <div className="px-6 py-2 flex justify-between"><h2 className="text-white text-2xl font-bold">New Issue</h2><button onClick={() => navigate(-1)} aria-label="Close" className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white"><span className="material-symbols-outlined">close</span></button></div>
-                 <div className="p-6 space-y-4">
-                      <input value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg" placeholder="Title" />
-                      <textarea value={desc} onChange={e=>setDesc(e.target.value)} className="w-full bg-input-dark rounded-xl p-4 text-white min-h-[200px]" placeholder="Description"></textarea>
-                      <button onClick={handleSubmit} disabled={!title || isSubmitting} className="w-full bg-primary h-14 rounded-xl font-bold text-black">{isSubmitting ? 'Submitting...' : 'Submit'}</button>
-                 </div>
+                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                      <div className="space-y-1">
+                          <label htmlFor="quick-issue-title" className="text-xs uppercase font-bold text-gray-500">Title</label>
+                          <input id="quick-issue-title" value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg focus:ring-primary focus:border-primary" placeholder="Title" autoFocus required />
+                      </div>
+                      <div className="space-y-1">
+                          <label htmlFor="quick-issue-desc" className="text-xs uppercase font-bold text-gray-500">Description</label>
+                          <textarea id="quick-issue-desc" value={desc} onChange={e=>setDesc(e.target.value)} className="w-full bg-input-dark rounded-xl p-4 text-white min-h-[200px] focus:ring-primary focus:border-primary" placeholder="Description"></textarea>
+                      </div>
+                      <button type="submit" disabled={!title || isSubmitting} className="w-full bg-primary h-14 rounded-xl font-bold text-black disabled:opacity-50">{isSubmitting ? 'Submitting...' : 'Submit'}</button>
+                 </form>
             </div>
         </div>
     );
