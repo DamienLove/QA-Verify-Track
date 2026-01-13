@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const Notes = () => {
-  const [isOpen, setIsOpen] = useState(false);
+const Notes = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
@@ -17,15 +16,7 @@ const Notes = () => {
   };
 
   if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-surface-dark text-white shadow-lg active:scale-90 transition-transform hover:scale-105"
-        aria-label="Open Notes"
-      >
-        <span className="material-symbols-outlined text-3xl">description</span>
-      </button>
-    );
+    return null;
   }
 
   return (
@@ -33,7 +24,7 @@ const Notes = () => {
       <div className="bg-surface-dark rounded-lg shadow-2xl w-full max-w-md mx-4">
         <div className="p-4 flex justify-between items-center border-b border-white/10">
           <h2 className="text-lg font-bold">Notes</h2>
-          <button onClick={() => setIsOpen(false)} aria-label="Close Notes">
+          <button onClick={onClose} aria-label="Close Notes">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>

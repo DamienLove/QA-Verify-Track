@@ -18,59 +18,99 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.qa.verifyandtrack.app.data.model.PullRequest
+import com.qa.verifyandtrack.app.ui.components.library.QACard
+import com.qa.verifyandtrack.app.ui.theme.Spacing
 
 @Composable
 fun PRCard(
     pullRequest: PullRequest,
-    onMerge: (PullRequest) -> Unit = {},
-    onDeny: (PullRequest) -> Unit = {},
-    onResolveConflict: (PullRequest) -> Unit = {}
+    onMerge: () -> Unit = {},
+    onDeny: () -> Unit = {},
+    onResolveConflict: () -> Unit = {},
+    onReadyForReview: () -> Unit = {},
+    canMergePR: Boolean = false,
+    canDenyPR: Boolean = false,
+    canResolve: Boolean = false
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Text(text = pullRequest.title, style = MaterialTheme.typography.titleMedium)
+    QACard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(Spacing.Default)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = pullRequest.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
                 if (pullRequest.isDraft) {
-                    Badge(containerColor = BadgeDefaults.containerColor) {
-                        Text("Draft")
+                    Badge(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+                        Text("Draft", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.Small))
             Text(
                 text = "${pullRequest.branch} -> ${pullRequest.targetBranch}",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (pullRequest.hasConflicts) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Row {
+                Spacer(modifier = Modifier.height(Spacing.Small))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Warning, contentDescription = null, tint = Color(0xFFF97316))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Conflicts detected", color = Color(0xFFF97316))
+                    Spacer(modifier = Modifier.width(Spacing.Small))
+                    Text("Conflicts detected", color = Color(0xFFF97316), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { onMerge(pullRequest) }) {
-                    Icon(Icons.Filled.CallMerge, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.height(Spacing.Default))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.Small)) {
+                if (pullRequest.isDraft) {
+                    TextButton(onClick = onReadyForReview) {
+                        Icon(
+                            if (canMergePR) Icons.Filled.Done else Icons.Filled.Lock,
+                            contentDescription = if (canMergePR) "Ready for Review" else "Pro Feature"
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
+                        Text("Ready")
+                    }
+                }
+                TextButton(onClick = onMerge) {
+                    Icon(
+                        if (canMergePR) Icons.Filled.CallMerge else Icons.Filled.Lock,
+                        contentDescription = if (canMergePR) "Merge PR" else "Pro Feature"
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
                     Text("Merge")
                 }
-                TextButton(onClick = { onDeny(pullRequest) }) {
-                    Icon(Icons.Filled.Block, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
+                TextButton(onClick = onDeny) {
+                    Icon(
+                        if (canDenyPR) Icons.Filled.Close else Icons.Filled.Lock,
+                        contentDescription = if (canDenyPR) "Deny PR" else "Pro Feature"
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
                     Text("Deny")
                 }
                 if (pullRequest.hasConflicts) {
-                    TextButton(onClick = { onResolveConflict(pullRequest) }) {
-                        Icon(Icons.Filled.Warning, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
+                    TextButton(onClick = onResolveConflict) {
+                        Icon(
+                            if (canResolve) Icons.Filled.Warning else Icons.Filled.Lock,
+                            contentDescription = if (canResolve) "Resolve Conflicts" else "Pro Feature"
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
                         Text("Resolve")
                     }
                 }

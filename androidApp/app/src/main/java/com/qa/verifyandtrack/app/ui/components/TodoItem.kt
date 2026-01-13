@@ -26,7 +26,10 @@ fun TodoItemRow(item: TodoItem, onClick: (TodoItem) -> Unit = {}) {
         ) {
             Text(text = item.repoName, style = MaterialTheme.typography.bodyLarge)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = item.openIssueCount.toString(), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = "${item.openIssueCount} issues • ${item.openPrCount} PRs",
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 Icon(Icons.Filled.ArrowForward, contentDescription = null)
             }
         }

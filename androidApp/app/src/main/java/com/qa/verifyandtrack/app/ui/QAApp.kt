@@ -5,12 +5,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.qa.verifyandtrack.app.ui.components.BottomNav
-import com.qa.verifyandtrack.app.ui.components.Notes
+import com.qa.verifyandtrack.app.ui.components.NotesDialog
 import com.qa.verifyandtrack.app.ui.navigation.QAAppNavHost
 import com.qa.verifyandtrack.app.ui.navigation.Screen
 import com.qa.verifyandtrack.app.ui.navigation.shouldShowBottomNav
@@ -23,6 +26,7 @@ fun QAApp() {
         val navController = rememberNavController()
         val authViewModel: AuthViewModel = viewModel()
         val currentUser by authViewModel.currentUser.collectAsState()
+        var showNotes by remember { mutableStateOf(false) }
 
         val startDestination = if (currentUser != null) Screen.Home.route else Screen.Login.route
 
@@ -41,7 +45,10 @@ fun QAApp() {
         Scaffold(
             bottomBar = {
                 if (currentUser != null && shouldShowBottomNav(navController)) {
-                    BottomNav(navController)
+                    BottomNav(
+                        navController = navController,
+                        onNotesClick = { showNotes = true }
+                    )
                 }
             }
         ) { paddingValues ->
@@ -51,7 +58,7 @@ fun QAApp() {
                 startDestination = startDestination,
                 modifier = Modifier.padding(paddingValues)
             )
-            Notes(contentPadding = paddingValues)
+            NotesDialog(showDialog = showNotes, onDismiss = { showNotes = false })
         }
     }
 }

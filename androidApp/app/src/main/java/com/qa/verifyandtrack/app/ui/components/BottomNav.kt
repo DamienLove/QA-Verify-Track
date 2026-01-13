@@ -14,7 +14,11 @@ import com.qa.verifyandtrack.app.ui.navigation.Screen
 import com.qa.verifyandtrack.app.ui.navigation.bottomNavScreens
 
 @Composable
-fun BottomNav(navController: NavHostController, currentRepoId: String? = null) {
+fun BottomNav(
+    navController: NavHostController,
+    currentRepoId: String? = null,
+    onNotesClick: () -> Unit = {}
+) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -25,6 +29,9 @@ fun BottomNav(navController: NavHostController, currentRepoId: String? = null) {
                 selected = selected,
                 onClick = {
                     when (screen) {
+                        Screen.Notes -> {
+                            onNotesClick()
+                        }
                         Screen.Dashboard -> {
                             val route = when {
                                 currentRoute?.startsWith("dashboard/") == true -> currentRoute

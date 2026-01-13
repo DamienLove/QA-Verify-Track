@@ -10,7 +10,7 @@ plugins {
 }
 
 play {
-    serviceAccountCredentials.set(file("../signing/service-account-key.json"))
+    serviceAccountCredentials.set(rootProject.file("../pulselink-24899-557c966b2570.json"))
     defaultToAppBundles.set(true)
     track.set("internal")
     resolutionStrategy.set(com.github.triplet.gradle.androidpublisher.ResolutionStrategy.AUTO)
@@ -36,15 +36,15 @@ android {
         applicationId = "com.qa.verifyandtrack.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "3.1"
+        versionCode = 6
+        versionName = "3.2"
         val geminiKey = localProps.getProperty("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
 
         // AdMob configuration
-        val admobAppId = localProps.getProperty("ADMOB_APP_ID") ?: "ca-app-pub-3940256099942544~3347511713" // Test ID
-        val admobBannerId = localProps.getProperty("ADMOB_BANNER_ID") ?: "ca-app-pub-3940256099942544/6300978111" // Test ID
-        val admobInterstitialId = localProps.getProperty("ADMOB_INTERSTITIAL_ID") ?: "ca-app-pub-3940256099942544/1033173712" // Test ID
+        val admobAppId = localProps.getProperty("ADMOB_APP_ID") ?: "ca-app-pub-5327057757821609~8462895987"
+        val admobBannerId = localProps.getProperty("ADMOB_BANNER_ID") ?: "ca-app-pub-5327057757821609/7756496580"
+        val admobInterstitialId = localProps.getProperty("ADMOB_INTERSTITIAL_ID") ?: "ca-app-pub-5327057757821609/9560532843"
         buildConfigField("String", "ADMOB_APP_ID", "\"$admobAppId\"")
         buildConfigField("String", "ADMOB_BANNER_ID", "\"$admobBannerId\"")
         buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$admobInterstitialId\"")

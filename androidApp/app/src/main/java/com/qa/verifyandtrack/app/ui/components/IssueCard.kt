@@ -19,9 +19,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,42 +34,47 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.qa.verifyandtrack.app.data.model.Issue
+import com.qa.verifyandtrack.app.ui.components.library.QACard
+import com.qa.verifyandtrack.app.ui.theme.Spacing
 
 @Composable
 fun IssueCard(
     issue: Issue,
-    onMarkFixed: (Issue) -> Unit = {},
-    onReopen: (Issue) -> Unit = {},
-    onBlock: (Issue) -> Unit = {},
-    onAnalyze: (Issue) -> Unit = {}
+    onMarkFixed: () -> Unit = {},
+    onReopen: () -> Unit = {},
+    onBlock: () -> Unit = {},
+    onAnalyze: () -> Unit = {},
+    canUseAI: Boolean = false
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    QACard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(Spacing.Default)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = issue.title,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(Spacing.Small))
                 Text(
                     text = issue.priority.uppercase(),
                     color = Color.White,
                     modifier = Modifier
                         .clip(MaterialTheme.shapes.small)
                         .background(priorityColor(issue.priority))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = Spacing.Small, vertical = Spacing.ExtraSmall),
                     style = MaterialTheme.typography.labelSmall
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.Small))
             Text(
                 text = issue.description.takeIf { it.isNotBlank() } ?: "No description provided.",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (issue.labels.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.height(Spacing.Small))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.Small)) {
                     items(issue.labels) { label ->
                         AssistChip(
                             onClick = {},
@@ -79,26 +87,29 @@ fun IssueCard(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { onMarkFixed(issue) }) {
+            Spacer(modifier = Modifier.height(Spacing.Default))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.Small)) {
+                TextButton(onClick = onMarkFixed) {
                     Icon(Icons.Filled.Done, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Mark Fixed")
+                    Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
+                    Text("Fixed")
                 }
-                TextButton(onClick = { onReopen(issue) }) {
-                    Icon(Icons.Filled.BugReport, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Reopen")
+                TextButton(onClick = onReopen) {
+                    Icon(Icons.Filled.Replay, contentDescription = null)
+                    Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
+                    Text("Open")
                 }
-                TextButton(onClick = { onBlock(issue) }) {
-                    Icon(Icons.Filled.Close, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
+                TextButton(onClick = onBlock) {
+                    Icon(Icons.Filled.Block, contentDescription = null)
+                    Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
                     Text("Block")
                 }
-                TextButton(onClick = { onAnalyze(issue) }) {
-                    Icon(Icons.Filled.SmartToy, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
+                TextButton(onClick = onAnalyze) {
+                    Icon(
+                        if (canUseAI) Icons.Filled.SmartToy else Icons.Filled.Lock,
+                        contentDescription = if (canUseAI) "AI Analysis" else "Pro Feature"
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
                     Text("AI")
                 }
             }

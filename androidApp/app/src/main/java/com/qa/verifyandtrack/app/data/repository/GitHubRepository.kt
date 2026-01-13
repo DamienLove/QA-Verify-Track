@@ -30,8 +30,11 @@ class GitHubRepository(private val gitHubService: GitHubService) {
     suspend fun updateIssueStatus(owner: String, repo: String, issueNumber: Int, state: String): Boolean =
         gitHubService.updateIssueStatus(owner, repo, issueNumber, state)
 
-    suspend fun mergePR(owner: String, repo: String, pullNumber: Int): Boolean =
+    suspend fun mergePR(owner: String, repo: String, pullNumber: Int): Result<Unit> =
         gitHubService.mergePR(owner, repo, pullNumber)
+
+    suspend fun markReadyForReview(owner: String, repo: String, pullNumber: Int): Result<Unit> =
+        gitHubService.markReadyForReview(owner, repo, pullNumber)
 
     suspend fun denyPR(owner: String, repo: String, pullNumber: Int): Boolean =
         gitHubService.denyPR(owner, repo, pullNumber)

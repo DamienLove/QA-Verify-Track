@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.qa.verifyandtrack.app.data.AppContainer
 import com.qa.verifyandtrack.app.data.model.Repository
 import com.qa.verifyandtrack.app.data.model.TodoItem
+import com.qa.verifyandtrack.app.data.model.UserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withContext
 class HomeViewModel : ViewModel() {
     private val authRepository = AppContainer.authRepository
     private val repoRepository = AppContainer.repoRepository
+    private val userProfileRepository = AppContainer.userProfileRepository
     private val gitHubRepository = AppContainer.gitHubRepository
 
     private val _repos = MutableStateFlow<List<Repository>>(emptyList())
@@ -31,6 +33,9 @@ class HomeViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    private val _userProfile = MutableStateFlow<UserProfile?>(null)
+    val userProfile: StateFlow<UserProfile?> = _userProfile
+
     init {
         viewModelScope.launch {
             authRepository.observeAuthState()
@@ -41,6 +46,35 @@ class HomeViewModel : ViewModel() {
                     _repos.value = repos
                     loadTodos(repos)
                 }
+        }
+
+        // Observe user profile and ensure it exists
+        viewModelScope.launch {
+            authRepository.observeAuthState()
+                .flatMapLatest { user ->
+                    if (user == null) {
+                        flowOf(null)
+                    } else {
+                        // Check if profile exists, create if not
+                        ensureUserProfileExists(user.uid, user.email ?: "", user.displayName)
+                        userProfileRepository.observeUserProfile(user.uid)
+                    }
+                }
+                .collect { profile ->
+                    _userProfile.value = profile
+                }
+        }
+    }
+
+    private suspend fun ensureUserProfileExists(userId: String, email: String, displayName: String?) {
+        try {
+            val existingProfile = userProfileRepository.getUserProfile(userId)
+            if (existingProfile == null) {
+                // Profile doesn't exist, create it
+                userProfileRepository.createFreeProfile(userId, email, displayName)
+            }
+        } catch (e: Exception) {
+            _error.value = "Failed to create user profile: ${e.message}"
         }
     }
 
@@ -55,13 +89,24 @@ class HomeViewModel : ViewModel() {
             val items = withContext(Dispatchers.IO) {
                 repos.map { repo ->
                     val token = repo.githubToken
-                    val count = if (!token.isNullOrBlank()) {
+                    val issueCount = if (!token.isNullOrBlank()) {
                         gitHubRepository.initialize(token)
                         runCatching { gitHubRepository.getOpenIssueCount(repo.owner, repo.name) }.getOrDefault(0)
                     } else {
                         0
                     }
-                    TodoItem(repoId = repo.id, repoName = repo.displayLabel, openIssueCount = count)
+                    val prCount = if (!token.isNullOrBlank()) {
+                        gitHubRepository.initialize(token)
+                        runCatching { gitHubRepository.getPullRequests(repo.owner, repo.name).size }.getOrDefault(0)
+                    } else {
+                        0
+                    }
+                    TodoItem(
+                        repoId = repo.id,
+                        repoName = repo.displayLabel,
+                        openIssueCount = issueCount,
+                        openPrCount = prCount
+                    )
                 }
             }
             _todos.value = items

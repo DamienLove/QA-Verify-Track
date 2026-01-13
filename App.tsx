@@ -6,18 +6,25 @@ import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
-import Todos from './components/Todos';
 import Notes from './components/Notes';
 
 // --- Shared UI Components ---
 
-const BottomNav = () => (
+const BottomNav = ({ onNotesClick }: { onNotesClick: () => void }) => (
   <nav className="fixed bottom-0 left-0 w-full bg-background-light/80 dark:bg-background-dark/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/10 z-50 pb-safe">
     <div className="flex items-center justify-around h-16 max-w-md mx-auto">
         <Link to="/" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-primary group">
             <span className="material-symbols-outlined text-[24px]">grid_view</span>
             <span className="text-[10px] font-bold">Projects</span>
         </Link>
+        <button
+            onClick={onNotesClick}
+            className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            aria-label="Open Notes"
+        >
+            <span className="material-symbols-outlined text-[24px]">description</span>
+            <span className="text-[10px] font-medium">Notes</span>
+        </button>
         <Link to="/config" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[24px]">settings</span>
             <span className="text-[10px] font-medium">Config</span>
@@ -115,7 +122,50 @@ const LoginPage = () => {
 // --- Protected Pages ---
 
 // 1. Home Page: Project Selection
-const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
+const HomePage = ({
+    repos,
+    user,
+    onNotesClick
+}: {
+    repos: Repository[],
+    user: User,
+    onNotesClick: () => void
+}) => {
+    const [repoStats, setRepoStats] = useState<Record<string, { issues: number; prs: number }>>({});
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchStats = async () => {
+            const stats: Record<string, { issues: number; prs: number }> = {};
+            for (const repo of repos) {
+                if (!repo.githubToken) {
+                    continue;
+                }
+                try {
+                    githubService.initialize(repo.githubToken);
+                    const issues = await githubService.getOpenIssueCount(repo.owner, repo.name);
+                    const prs = await githubService.getPullRequests(repo.owner, repo.name);
+                    stats[repo.id] = { issues, prs: prs.length };
+                } catch (error) {
+                    console.error(`Failed to fetch stats for ${repo.owner}/${repo.name}`, error);
+                }
+            }
+            if (isMounted) {
+                setRepoStats(stats);
+            }
+        };
+
+        if (repos.length > 0) {
+            fetchStats();
+        } else {
+            setRepoStats({});
+        }
+
+        return () => {
+            isMounted = false;
+        };
+    }, [repos]);
+
     return (
         <div className="relative flex h-full min-h-screen w-full flex-col overflow-hidden pb-20">
             <header className="sticky top-0 z-10 flex items-center justify-between bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md p-4 pb-2 border-b border-gray-200 dark:border-white/5">
@@ -134,8 +184,7 @@ const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
                 </Link>
             </header>
 
-            <main className="flex-1 flex flex-col gap-6 p-4">
-                <Todos repos={repos} />
+            <main className="flex-1 flex flex-col gap-5 p-4">
                 {repos.length === 0 ? (
                     <div className="text-center py-20 opacity-60">
                          <span className="material-symbols-outlined text-6xl mb-4">move_to_inbox</span>
@@ -145,8 +194,8 @@ const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
                 ) : (
                     repos.map(repo => (
                         <div key={repo.id} className="group flex flex-col gap-0 rounded-xl bg-white dark:bg-[#1a2e1c] shadow-md hover:shadow-lg transition-shadow overflow-hidden border border-gray-100 dark:border-white/5">
-                            <div className="p-4 flex items-start justify-between">
-                                <div className="flex flex-col gap-1">
+                            <div className="p-3 flex items-start justify-between">
+                                <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-2 text-gray-400 mb-1">
                                         <span className="material-symbols-outlined text-sm">folder_open</span>
                                         <span className="text-xs font-medium uppercase tracking-wider">{repo.apps[0]?.platform || 'Generic'}</span>
@@ -155,11 +204,15 @@ const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
                                         {repo.displayName || repo.name}
                                         <span className="text-xs font-normal text-gray-500 ml-2">({repo.owner}/{repo.name})</span>
                                     </h3>
-                                    <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex items-center gap-2 mt-0.5">
                                         <span className="relative flex h-2 w-2">
                                             <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                                         </span>
                                         <p className="text-primary text-xs font-bold">Build #{repo.apps[0]?.buildNumber}</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                                        <span>Issues: <span className="font-semibold text-slate-900 dark:text-white">{repoStats[repo.id]?.issues ?? '—'}</span></span>
+                                        <span>PRs: <span className="font-semibold text-slate-900 dark:text-white">{repoStats[repo.id]?.prs ?? '—'}</span></span>
                                     </div>
                                 </div>
                                 <Link to={`/dashboard?repo=${repo.id}`} aria-label="View repository dashboard" className="flex items-center justify-center size-10 rounded-full bg-gray-100 dark:bg-[#253827] text-primary">
@@ -170,7 +223,7 @@ const HomePage = ({ repos, user }: { repos: Repository[], user: User }) => {
                     ))
                 )}
             </main>
-            <BottomNav />
+            <BottomNav onNotesClick={onNotesClick} />
         </div>
     );
 };
@@ -472,7 +525,7 @@ const ConfigurationPage = ({ repos, setRepos, user }: { repos: Repository[], set
 };
 
 // 3. Dashboard
-const Dashboard = ({ repos }: { repos: Repository[] }) => {
+const Dashboard = ({ repos, onNotesClick }: { repos: Repository[], onNotesClick: () => void }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const repoId = searchParams.get('repo');
@@ -765,7 +818,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                 </div>
             </header>
 
-            <section className="px-4 py-5 space-y-3">
+            <section className="px-4 py-3 space-y-3">
                  <div className="flex items-end gap-3">
                     <div className="flex-1 space-y-1.5">
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
@@ -802,7 +855,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
             </section>
             <div className="h-px w-full bg-gray-200 dark:bg-white/5 mb-4"></div>
 
-            <main className="flex-1 px-4 space-y-4">
+            <main className="flex-1 px-4 space-y-3">
                 {undoPr && (
                     <div className="flex items-center justify-between bg-gray-900 text-white p-3 rounded-lg animate-slide-in-right shadow-xl">
                         <span className="text-sm">PR #{undoPr.pr.number} closed.</span>
@@ -823,7 +876,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                             <div className="text-center py-10 opacity-50"><span className="material-symbols-outlined text-6xl text-gray-600">check_circle</span><p className="mt-4 text-gray-400">All cleared for build {buildNumber}!</p></div>
                         ) : (
                             issues.map(issue => (
-                                <article key={issue.id} className="relative flex flex-col gap-2 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-3 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
+                                <article key={issue.id} className="relative flex flex-col gap-1.5 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-2 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
                                     <div className="flex items-start justify-between gap-2.5">
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
@@ -837,13 +890,13 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                             </a>
                                         </div>
                                     </div>
-                                    <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-2">
+                                    <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-1.5">
                                         <p className="text-xs text-gray-600 dark:text-gray-200 line-clamp-3 font-mono leading-snug">{issue.description}</p>
                                     </div>
 
                                     {/* AI Analysis Result Display */}
                                     {analysisResults[issue.id] && (
-                                        <div className="bg-primary/10 border border-primary/25 rounded-lg p-2.5 animate-fade-in">
+                                        <div className="bg-primary/10 border border-primary/25 rounded-lg p-2 animate-fade-in">
                                             <div className="flex items-center gap-1 mb-1 text-primary">
                                                 <span className="material-symbols-outlined text-[15px]">smart_toy</span>
                                                 <span className="text-[11px] font-bold uppercase">Gemini Analysis</span>
@@ -852,14 +905,14 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                         </div>
                                     )}
 
-                                    <div className="grid grid-cols-4 gap-2 mt-1">
-                                        <button onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
-                                        <button onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>
-                                        <Link to={`/block/${issue.id}`} className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</Link>
+                                    <div className="grid grid-cols-4 gap-1.5 mt-0.5">
+                                        <button onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
+                                        <button onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>
+                                        <Link to={`/block/${issue.id}`} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</Link>
                                         <button 
                                             onClick={() => handleAnalyze(issue)} 
                                             disabled={analyzingIds.has(issue.id)}
-                                            className="col-span-1 flex flex-col items-center justify-center gap-1 h-11 rounded-lg bg-blue-600/10 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-600/20 dark:border-blue-500/25 font-semibold text-[11px] active:scale-95 transition-transform disabled:opacity-50"
+                                            className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-blue-600/10 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-600/20 dark:border-blue-500/25 font-semibold text-[11px] active:scale-95 transition-transform disabled:opacity-50"
                                         >
                                             {analyzingIds.has(issue.id) ? (
                                                 <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
@@ -876,15 +929,15 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                 )}
 
                 {!loading && tab === 'prs' && (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         {prError && <div className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 text-xs px-3 py-2">{prError}</div>}
                         {prs.map(pr => {
                              const isProcessing = prProcessing === pr.id;
                              const isManual = manualResolveIds.has(pr.id);
 
                              return (
-                                <div key={pr.id} className="group relative bg-white dark:bg-[#1A1616] rounded-xl p-4 border border-gray-200 dark:border-white/10 shadow-sm transition-all animate-fade-in">
-                                    <div className="flex justify-between items-start mb-2">
+                                <div key={pr.id} className="group relative bg-white dark:bg-[#1A1616] rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm transition-all animate-fade-in">
+                                    <div className="flex justify-between items-start mb-1.5">
                                         <div className="pr-2">
                                             <div className="flex items-center gap-2 mb-1">
                                                 {pr.isDraft && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase tracking-wide">Draft</span>}
@@ -894,7 +947,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                             <div className="text-xs text-gray-500 mt-1">#{pr.number} • {pr.author.name}</div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-4 font-mono bg-gray-50 dark:bg-white/5 p-2 rounded-lg border border-gray-200 dark:border-white/5">
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 font-mono bg-gray-50 dark:bg-white/5 p-1.5 rounded-lg border border-gray-200 dark:border-white/5">
                                         <span className="text-slate-700 dark:text-gray-300">{pr.branch}</span><span className="material-symbols-outlined text-[12px]">arrow_forward</span><span className="text-slate-700 dark:text-gray-300">{pr.targetBranch}</span>
                                     </div>
                                     
@@ -905,7 +958,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                                     href={`https://github.com/${repo.owner}/${repo.name}/pull/${pr.number}/conflicts`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] hover:bg-amber-600/30"
+                                                    className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] hover:bg-amber-600/30"
                                                 >
                                                     <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                                                     Open in GitHub
@@ -914,7 +967,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                                 <button 
                                                     disabled={isProcessing}
                                                     onClick={() => handleResolveConflicts(pr)} 
-                                                    className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
+                                                    className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
                                                 >
                                                     {isProcessing ? 'Resolving...' : (
                                                         <>
@@ -928,7 +981,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                             <button 
                                                 disabled={isProcessing}
                                                 onClick={() => handleMergeSequence(pr)} 
-                                                className={`flex-1 font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-colors ${
+                                                className={`flex-1 font-bold text-xs py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50 transition-colors ${
                                                     pr.isDraft 
                                                     ? 'bg-blue-600 text-white hover:bg-blue-700' 
                                                     : 'bg-primary text-black hover:bg-primary-hover'
@@ -951,9 +1004,9 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                 )}
 
                 {tab === 'tests' && (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         <div className="flex flex-col gap-3">
-                            <div className="bg-white dark:bg-surface-dark-lighter rounded-xl p-4 border border-gray-200 dark:border-white/5 space-y-3">
+                            <div className="bg-white dark:bg-surface-dark-lighter rounded-xl p-3 border border-gray-200 dark:border-white/5 space-y-3">
                                 <h3 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-wider">Add Manual Test</h3>
                                 <div className="flex gap-2">
                                     <input
@@ -997,7 +1050,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                                 tests.map(test => {
                                     const isChecked = test.lastCheckedBuild === buildNumber;
                                     return (
-                                        <div key={test.id} onClick={() => toggleTest(test.id)} className={`group cursor-pointer flex items-start gap-3 p-3 rounded-xl border transition-all ${isChecked ? 'bg-primary/5 border-primary/20' : 'bg-white dark:bg-surface-dark-lighter border-gray-200 dark:border-white/5 hover:border-primary/30'}`}>
+                                        <div key={test.id} onClick={() => toggleTest(test.id)} className={`group cursor-pointer flex items-start gap-2 p-2 rounded-xl border transition-all ${isChecked ? 'bg-primary/5 border-primary/20' : 'bg-white dark:bg-surface-dark-lighter border-gray-200 dark:border-white/5 hover:border-primary/30'}`}>
                                             <div className={`mt-0.5 flex-shrink-0 size-5 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-black' : 'bg-transparent border-gray-400 dark:border-gray-500 group-hover:border-primary'}`}>
                                                 {isChecked && <span className="material-symbols-outlined text-sm font-bold">check</span>}
                                             </div>
@@ -1016,7 +1069,7 @@ const Dashboard = ({ repos }: { repos: Repository[] }) => {
                 )}
             </main>
             <Link to={`/quick-issue?repo=${repo?.id}`} aria-label="Create new issue" className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-[0_4px_16px_rgba(19,236,37,0.4)] active:scale-90 transition-transform hover:scale-105"><span className="material-symbols-outlined text-3xl">add</span></Link>
-            <BottomNav />
+            <BottomNav onNotesClick={onNotesClick} />
         </div>
     );
 };
@@ -1074,6 +1127,7 @@ const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [repos, setRepos] = useState<Repository[]>([]);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -1107,14 +1161,14 @@ const App = () => {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<HomePage repos={repos} user={user} />} />
-        <Route path="/dashboard" element={<Dashboard repos={repos} />} />
+        <Route path="/" element={<HomePage repos={repos} user={user} onNotesClick={() => setNotesOpen(true)} />} />
+        <Route path="/dashboard" element={<Dashboard repos={repos} onNotesClick={() => setNotesOpen(true)} />} />
         <Route path="/config" element={<ConfigurationPage repos={repos} setRepos={setRepos} user={user} />} />
         <Route path="/quick-issue" element={<QuickIssuePage repos={repos} />} />
         <Route path="/block/:id" element={<BlockPromptPage />} />
         <Route path="/conflicts" element={<ConflictPage />} />
       </Routes>
-      <Notes />
+      <Notes isOpen={notesOpen} onClose={() => setNotesOpen(false)} />
     </HashRouter>
   );
 };

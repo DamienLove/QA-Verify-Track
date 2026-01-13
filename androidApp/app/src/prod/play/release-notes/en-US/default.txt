@@ -1,0 +1,6 @@
+Version 3.2 (6)
+- Draft PRs: added Ready action and clearer merge error handling.
+- Notes moved into bottom navigation; removed floating overlap.
+- Repo cards now show open issue and PR counts; removed redundant todos list.
+- Web UI spacing compacted for issues/PRs/repos/tests.
+- Issue action button label clarified to "Fixed".

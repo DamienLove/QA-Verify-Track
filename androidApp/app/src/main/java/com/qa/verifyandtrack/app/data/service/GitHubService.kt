@@ -141,10 +141,32 @@ class GitHubService {
         return true
     }
 
-    suspend fun mergePR(owner: String, repo: String, pullNumber: Int): Boolean {
+    suspend fun mergePR(owner: String, repo: String, pullNumber: Int): Result<Unit> {
         requireToken()
-        api.mergePull(owner, repo, pullNumber)
-        return true
+        return try {
+            val response = api.mergePull(owner, repo, pullNumber)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(IllegalStateException(responseErrorMessage(response)))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun markReadyForReview(owner: String, repo: String, pullNumber: Int): Result<Unit> {
+        requireToken()
+        return try {
+            val response = api.readyForReview(owner, repo, pullNumber)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(IllegalStateException(responseErrorMessage(response)))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun denyPR(owner: String, repo: String, pullNumber: Int): Boolean {
@@ -234,6 +256,19 @@ class GitHubService {
     private data class CachedComments(val timestamp: String, val data: List<Comment>)
 
     private val commentsCache: MutableMap<String, CachedComments> = mutableMapOf()
+
+    private fun responseErrorMessage(response: Response<*>): String {
+        val code = response.code()
+        val body = response.errorBody()?.string()
+        val message = body?.let {
+            Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(it)?.groupValues?.get(1)
+        }
+        return if (!message.isNullOrBlank()) {
+            "GitHub API error ($code): $message"
+        } else {
+            "GitHub API error ($code)."
+        }
+    }
 }
 
 private interface GitHubApi {
@@ -295,6 +330,13 @@ private interface GitHubApi {
 
     @PUT("repos/{owner}/{repo}/pulls/{pull_number}/merge")
     suspend fun mergePull(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int
+    ): Response<Unit>
+
+    @POST("repos/{owner}/{repo}/pulls/{pull_number}/ready_for_review")
+    suspend fun readyForReview(
         @Path("owner") owner: String,
         @Path("repo") repo: String,
         @Path("pull_number") pullNumber: Int
