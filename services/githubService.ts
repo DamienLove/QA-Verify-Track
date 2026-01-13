@@ -1,8 +1,18 @@
-import { Octokit } from "@octokit/rest";
+import type { Octokit } from "@octokit/rest";
 import { Issue, PullRequest } from '../types';
 
 let octokit: Octokit | null = null;
+let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: any[] }>();
+
+const getOctokit = async (): Promise<Octokit> => {
+  if (octokit) return octokit;
+  if (!currentToken) throw new Error("GitHub service not initialized. Please configure your token.");
+
+  const { Octokit } = await import("@octokit/rest");
+  octokit = new Octokit({ auth: currentToken });
+  return octokit;
+};
 
 const mapPriority = (labels: any[]): Issue['priority'] => {
   const names = labels.map((l: any) => (l.name || '').toLowerCase());
@@ -15,11 +25,12 @@ const mapPriority = (labels: any[]): Issue['priority'] => {
 
 export const githubService = {
   initialize: (token: string) => {
-    octokit = new Octokit({ auth: token });
+    currentToken = token;
+    octokit = null; // Force recreation with new token on next use
   }, 
 
   getIssueComments: async (owner: string, repo: string, issueNumber: number, lastUpdated?: string) => {
-    if (!octokit) throw new Error("GitHub service not initialized. Please configure your token.");
+    const api = await getOctokit();
 
     const cacheKey = `${owner}/${repo}/${issueNumber}`;
 
@@ -31,7 +42,7 @@ export const githubService = {
       }
     }
 
-    const { data } = await octokit.issues.listComments({
+    const { data } = await api.issues.listComments({
       owner,
       repo,
       issue_number: issueNumber,
@@ -50,10 +61,10 @@ export const githubService = {
   },
 
   getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open'): Promise<Issue[]> => {
-    if (!octokit) throw new Error("GitHub service not initialized. Please configure your token.");
+    const api = await getOctokit();
     
     try {
-      const response = await octokit.issues.listForRepo({
+      const response = await api.issues.listForRepo({
         owner,
         repo,
         state,
@@ -90,10 +101,10 @@ export const githubService = {
   },
 
   getPullRequests: async (owner: string, repo: string): Promise<PullRequest[]> => {
-    if (!octokit) throw new Error("GitHub service not initialized");
+    const api = await getOctokit();
 
     try {
-      const response = await octokit.pulls.list({
+      const response = await api.pulls.list({
         owner,
         repo,
         state: 'open',
@@ -124,8 +135,8 @@ export const githubService = {
 
   // Get full details for a single PR, including mergeable state
   getPullRequest: async (owner: string, repo: string, pullNumber: number) => {
-      if (!octokit) throw new Error("GitHub service not initialized");
-      const { data } = await octokit.pulls.get({
+      const api = await getOctokit();
+      const { data } = await api.pulls.get({
           owner,
           repo,
           pull_number: pullNumber
@@ -134,9 +145,9 @@ export const githubService = {
   },
 
   createIssue: async (repoId: string, issue: Partial<Issue>, owner: string, repoName: string) => {
-    if (!octokit) throw new Error("GitHub service not initialized");
+    const api = await getOctokit();
     
-    const response = await octokit.issues.create({
+    const response = await api.issues.create({
       owner: owner,
       repo: repoName,
       title: issue.title || '',
@@ -148,8 +159,8 @@ export const githubService = {
   },
 
   addComment: async (owner: string, repo: string, issueNumber: number, body: string) => {
-    if (!octokit) throw new Error("GitHub service not initialized");
-    await octokit.issues.createComment({
+    const api = await getOctokit();
+    await api.issues.createComment({
       owner,
       repo,
       issue_number: issueNumber,
@@ -159,8 +170,8 @@ export const githubService = {
   },
 
   updateIssueStatus: async (owner: string, repo: string, issueNumber: number, state: 'open' | 'closed') => {
-    if (!octokit) throw new Error("GitHub service not initialized");
-    await octokit.issues.update({
+    const api = await getOctokit();
+    await api.issues.update({
       owner,
       repo,
       issue_number: issueNumber,
@@ -170,8 +181,8 @@ export const githubService = {
   },
   
   mergePR: async (owner: string, repo: string, pullNumber: number) => {
-    if (!octokit) throw new Error("GitHub service not initialized");
-    await octokit.pulls.merge({
+    const api = await getOctokit();
+    await api.pulls.merge({
         owner,
         repo,
         pull_number: pullNumber
@@ -180,8 +191,8 @@ export const githubService = {
   },
 
   denyPR: async (owner: string, repo: string, pullNumber: number) => {
-      if (!octokit) throw new Error("GitHub service not initialized");
-      await octokit.pulls.update({
+      const api = await getOctokit();
+      await api.pulls.update({
           owner,
           repo,
           pull_number: pullNumber,
@@ -191,12 +202,12 @@ export const githubService = {
   },
 
   updatePR: async (owner: string, repo: string, pullNumber: number, updates: any) => {
-      if (!octokit) throw new Error("GitHub service not initialized");
+      const api = await getOctokit();
 
       const { isDraft, ...restUpdates } = updates;
 
       if (isDraft !== undefined) {
-          const { data: pr } = await octokit.pulls.get({
+          const { data: pr } = await api.pulls.get({
               owner,
               repo,
               pull_number: pullNumber
@@ -207,7 +218,7 @@ export const githubService = {
               ? `mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id}) { clientMutationId } }`
               : `mutation($id: ID!) { markPullRequestReadyForReview(input: {pullRequestId: $id}) { clientMutationId } }`;
 
-          await octokit.request('POST /graphql', {
+          await api.request('POST /graphql', {
               query: mutation,
               variables: {
                   id: pr.node_id
@@ -217,7 +228,7 @@ export const githubService = {
 
       // Apply other REST updates if any
       if (Object.keys(restUpdates).length > 0) {
-          await octokit.pulls.update({
+          await api.pulls.update({
               owner,
               repo,
               pull_number: pullNumber,
@@ -229,8 +240,8 @@ export const githubService = {
   },
 
   addReviewer: async (owner: string, repo: string, pullNumber: number, reviewer: string) => {
-     if (!octokit) throw new Error("GitHub service not initialized");
-     await octokit.pulls.requestReviewers({
+     const api = await getOctokit();
+     await api.pulls.requestReviewers({
          owner,
          repo,
          pull_number: pullNumber,
@@ -240,8 +251,8 @@ export const githubService = {
   },
 
   approvePR: async (owner: string, repo: string, pullNumber: number) => {
-     if (!octokit) throw new Error("GitHub service not initialized");
-     await octokit.pulls.createReview({
+     const api = await getOctokit();
+     await api.pulls.createReview({
          owner,
          repo,
          pull_number: pullNumber,
@@ -252,9 +263,9 @@ export const githubService = {
 
   // Try to update branch with base to resolve simple behind-head conflicts
   updateBranch: async (owner: string, repo: string, pullNumber: number) => {
-      if (!octokit) throw new Error("GitHub service not initialized");
+      const api = await getOctokit();
       try {
-          await octokit.pulls.updateBranch({
+          await api.pulls.updateBranch({
               owner,
               repo,
               pull_number: pullNumber
@@ -267,8 +278,8 @@ export const githubService = {
   },
 
   getOpenIssueCount: async (owner: string, repo: string): Promise<number> => {
-    if (!octokit) throw new Error("GitHub service not initialized");
-    const response = await octokit.search.issuesAndPullRequests({
+    const api = await getOctokit();
+    const response = await api.search.issuesAndPullRequests({
       q: `repo:${owner}/${repo} is:issue is:open`,
     });
     return response.data.total_count;
