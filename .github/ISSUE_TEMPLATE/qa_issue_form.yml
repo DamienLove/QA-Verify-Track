@@ -1,0 +1,199 @@
+# QA Issue form for DamienLove/QA-Verify-Track
+# Add this file to .github/ISSUE_TEMPLATE/qa_issue_form.yml in your repository.
+name: QA / Bug Report
+description: Use this form to report issues, crashes, UI problems, or feature requests. Select extra sections you want to fill in using "Add more info".
+title: "QA Issue: ${{ inputs.summary }}"
+labels:
+  - "triage"
+  - "qa"
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      description: "Choose the severity of the issue."
+      options:
+        - label: "0 (Critical)"
+          value: "0"
+        - label: "1 (Severe)"
+          value: "1"
+        - label: "2 (High)"
+          value: "2"
+        - label: "3 (Med)"
+          value: "3"
+        - label: "4 (Low)"
+          value: "4"
+        - label: "5 (Document, Request, or Suggestion)"
+          value: "5"
+      default: "2"
+    validations:
+      required: true
+
+  - type: number
+    id: build_number
+    attributes:
+      label: "Build Number"
+      description: "Enter the build number (numeric)."
+      placeholder: "e.g. 20260114 or 1234"
+    validations:
+      required: false
+
+  - type: input
+    id: summary
+    attributes:
+      label: "Issue Summary"
+      description: "Short one-line summary of the issue."
+      placeholder: "Brief summary"
+    validations:
+      required: true
+      min_length: 5
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Issue Description"
+      description: |
+        Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes.
+      placeholder: |
+        ___________________________________________________
+        ___________________________________________________
+        ___________________________________________________
+        ___________________________________________________
+    validations:
+      required: true
+      min_length: 10
+
+  - type: checkboxes
+    id: add_more_info
+    attributes:
+      label: "Add more info"
+      description: "Select the additional sections you will fill in below. (Fields appear below — fill them only if you selected the corresponding option.)"
+      options:
+        - label: "Steps to Reproduce"
+          value: "steps"
+        - label: "Expected vs. Actual"
+          value: "expected_actual"
+        - label: "Photos (images only)"
+          value: "photos"
+        - label: "Location of issue (page/section)"
+          value: "location"
+        - label: "Crash log or other file attachment (non-photo)"
+          value: "files"
+        - label: "OS / Environment"
+          value: "os"
+
+  # --- Steps to Reproduce (fill only if you selected 'Steps to Reproduce') ---
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: |
+        Fill this out only if you selected "Steps to Reproduce" in Add more info.
+        Use the numbered template below. Add additional steps by continuing the numbering.
+      placeholder: |
+        1. ___________________________________________________
+        2. ___________________________________________________
+        3. ___________________________________________________
+        (Add more numbered lines as needed)
+    validations:
+      required: false
+      min_length: 0
+
+  # --- Expected vs Actual (fill only if you selected 'Expected vs. Actual') ---
+  - type: textarea
+    id: expected_results
+    attributes:
+      label: "Expected Results"
+      description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what you expected to happen."
+      placeholder: "Expected results: _________________________________________________________"
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual_results
+    attributes:
+      label: "Actual Results"
+      description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what actually happened."
+      placeholder: "Actual results: _________________________________________________________"
+    validations:
+      required: false
+
+  # --- Photos (images only) (fill only if you selected 'Photos') ---
+  - type: attachments
+    id: photos
+    attributes:
+      label: "Photos (images only)"
+      description: |
+        Attach screenshots or photos (images only). Fill Photo Description for context.
+        NOTE: GitHub may not strictly enforce file types; please attach image files (png/jpg).
+    validations:
+      required: false
+      # validations for attachments are limited; keep optional
+
+  - type: textarea
+    id: photo_description
+    attributes:
+      label: "Photo Description"
+      description: "Describe each attached photo. Fill this only if you selected 'Photos'."
+      placeholder: "Photo 1: ...\nPhoto 2: ..."
+    validations:
+      required: false
+
+  # --- Location of issue (page/section) (fill only if you selected 'Location of issue') ---
+  - type: input
+    id: location_of_issue
+    attributes:
+      label: "Location of issue (page / section)"
+      description: "Where in the app or webapp did this occur? Page, section, or workflow."
+      placeholder: "e.g., Settings > Profile > Change Password"
+    validations:
+      required: false
+
+  - type: textarea
+    id: location_details
+    attributes:
+      label: "Location Details"
+      description: "Any additional details about the location (navigation steps, user role, etc.)"
+      placeholder: "_____________________________________________________________"
+    validations:
+      required: false
+
+  # --- Crash log or other file attachment (non-photo) ---
+  - type: attachments
+    id: other_files
+    attributes:
+      label: "Crash log or other file attachment (non-photo)"
+      description: |
+        Attach logs, crash reports or other files (avoid attaching images here).
+        If you attached files, provide a short description below.
+    validations:
+      required: false
+
+  - type: textarea
+    id: other_files_description
+    attributes:
+      label: "File Description"
+      description: "Describe the attached file(s). Fill this only if you attached files."
+      placeholder: "e.g., crash_log_2026-01-14.txt contains full stack trace for crash"
+    validations:
+      required: false
+
+  # --- OS / Environment ---
+  - type: input
+    id: os_environment
+    attributes:
+      label: "OS / Environment"
+      description: "Operating system, OS version, device, browser and version (if applicable). Fill this only if you selected 'OS / Environment'."
+      placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
+    validations:
+      required: false
+
+  # --- Optional: Additional notes ---
+  - type: textarea
+    id: additional_notes
+    attributes:
+      label: "Additional notes"
+      description: "Any other details the QA or dev team should know."
+      placeholder: "Optional additional context"
+    validations:
+      required: false
