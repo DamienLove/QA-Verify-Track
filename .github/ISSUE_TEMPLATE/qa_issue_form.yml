@@ -25,7 +25,7 @@ body:
           value: "4"
         - label: "5 (Document, Request, or Suggestion)"
           value: "5"
-      default: "2"
+      default: 2
     validations:
       required: true
 
@@ -70,17 +70,11 @@ body:
       description: "Select the additional sections you will fill in below. (Fields appear below — fill them only if you selected the corresponding option.)"
       options:
         - label: "Steps to Reproduce"
-          value: "steps"
         - label: "Expected vs. Actual"
-          value: "expected_actual"
         - label: "Photos (images only)"
-          value: "photos"
         - label: "Location of issue (page/section)"
-          value: "location"
         - label: "Crash log or other file attachment (non-photo)"
-          value: "files"
         - label: "OS / Environment"
-          value: "os"
 
   # --- Steps to Reproduce (fill only if you selected 'Steps to Reproduce') ---
   - type: textarea
@@ -118,13 +112,15 @@ body:
       required: false
 
   # --- Photos (images only) (fill only if you selected 'Photos') ---
-  - type: attachments
+  - type: textarea
     id: photos
     attributes:
-      label: "Photos (images only)"
+      label: "Photos (attach via issue UI or paste image links)"
       description: |
-        Attach screenshots or photos (images only). Fill Photo Description for context.
-        NOTE: GitHub may not strictly enforce file types; please attach image files (png/jpg).
+        GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image URLs here (e.g., uploaded to cloud or image host). For each image, include a short description in the Photo Description field below.
+      placeholder: |
+        Photo link or note: https://...
+        Photo 1 filename or brief note
     validations:
       required: false
 
@@ -157,13 +153,12 @@ body:
       required: false
 
   # --- Crash log or other file attachment (non-photo) ---
-  - type: attachments
+  - type: textarea
     id: other_files
     attributes:
-      label: "Crash log or other file attachment (non-photo)"
+      label: "Crash log or other file (paste logs or provide links)"
       description: |
-        Attach logs, crash reports or other files (avoid attaching images here).
-        If you attached files, provide a short description below.
+        GitHub issue forms do not support file inputs. Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link.
     validations:
       required: false
 
@@ -171,7 +166,7 @@ body:
     id: other_files_description
     attributes:
       label: "File Description"
-      description: "Describe the attached file(s). Fill this only if you attached files."
+      description: "Describe the attached file(s) or the links you provided. Fill this only if you attached files or pasted links."
       placeholder: "e.g., crash_log_2026-01-14.txt contains full stack trace for crash"
     validations:
       required: false
