@@ -45,11 +45,11 @@ body:
     attributes:
       label: "Issue Description"
       description: |
-        Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes.
+        "Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes."
       placeholder: |
-
+         "Detailed description of the issue"
     validations:
-      required: true
+      required: false
       min_length: 10
 
 
@@ -61,10 +61,10 @@ body:
         Fill this out only if you selected "Steps to Reproduce" in Add more info.
         Use the numbered template below. Add additional steps by continuing the numbering.
       placeholder: |
-        1. 
+       " 1. 
         2. 
         3. 
-        (Add more numbered lines as needed)
+        (Add more numbered lines as needed)"
     validations:
       required: false
 
@@ -124,7 +124,7 @@ body:
     attributes:
       label: "Location Details"
       description: "Any additional details about the location (navigation steps, user role, etc.)"
-      placeholder: ""
+      placeholder: "Home Page/Repo Page/Issues Page"
     validations:
       required: false
 
