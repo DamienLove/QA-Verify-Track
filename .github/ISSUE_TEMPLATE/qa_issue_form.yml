@@ -49,8 +49,6 @@ body:
          "Detailed description of the issue"
     validations:
       required: false
-      min_length: 10
-
 
   - type: textarea
     id: steps_to_reproduce
@@ -64,7 +62,6 @@ body:
         (Add more numbered lines as needed)"
     validations:
       required: false
-
 
   - type: textarea
     id: expected_results
@@ -84,12 +81,11 @@ body:
     validations:
       required: false
 
-
   - type: textarea
     id: photos
     attributes:
       label: "Photos (attach via issue UI or paste image links)"
-      description: "GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image URLs here (e.g., uploaded to cloud or image host). For each image, include a short description in the Photo Description field below."
+      description: "GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image links into the form."
       placeholder: |
         Photo link or note: https://...
         Photo 1 filename or brief note
@@ -104,7 +100,6 @@ body:
       placeholder: "Photo 1: ...\nPhoto 2: ..."
     validations:
       required: false
-
 
   - type: input
     id: location_of_issue
@@ -124,7 +119,6 @@ body:
     validations:
       required: false
 
-
   - type: textarea
     id: other_files
     attributes:
@@ -142,7 +136,6 @@ body:
     validations:
       required: false
 
-
   - type: input
     id: os_environment
     attributes:
@@ -151,7 +144,6 @@ body:
       placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
     validations:
       required: false
-
 
   - type: textarea
     id: additional_notes
