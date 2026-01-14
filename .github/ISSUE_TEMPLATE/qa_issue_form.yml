@@ -18,7 +18,7 @@ body:
         - "3 (Med)"
         - "4 (Low)"
         - "5 (Document, Request, or Suggestion)"
-      default: "2 (High)"
+      default: 2
     validations:
       required: true
 
