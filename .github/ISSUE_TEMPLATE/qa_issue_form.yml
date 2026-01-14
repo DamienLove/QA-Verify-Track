@@ -58,8 +58,8 @@ body:
     attributes:
       label: "Steps to Reproduce"
       description: |
-        Fill this out only if you selected "Steps to Reproduce" in Add more info.
-        Use the numbered template below. Add additional steps by continuing the numbering.
+        "Fill this out only if you selected "Steps to Reproduce" in Add more info.
+        Use the numbered template below. Add additional steps by continuing the numbering."
       placeholder: |
        " 1. 
         2. 
@@ -93,7 +93,7 @@ body:
     attributes:
       label: "Photos (attach via issue UI or paste image links)"
       description: |
-        GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image URLs here (e.g., uploaded to cloud or image host). For each image, include a short description in the Photo Description field below.
+        "GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image URLs here (e.g., uploaded to cloud or image host). For each image, include a short description in the Photo Description field below."
       placeholder: |
         Photo link or note: https://...
         Photo 1 filename or brief note
@@ -134,7 +134,7 @@ body:
     attributes:
       label: "Crash log or other file (paste logs or provide links)"
       description: |
-        GitHub issue forms do not support file inputs. Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link.
+        "GitHub issue forms do not support file inputs. Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link."
     validations:
       required: false
 
