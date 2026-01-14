@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => void; userId: string }) => {
   const [notes, setNotes] = useState('');
   const storageKey = `notes_${userId}`;
+  const MAX_NOTE_LENGTH = 10000;
 
   useEffect(() => {
     if (isOpen) {
@@ -21,7 +22,10 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
   }, [isOpen, userId, storageKey]);
 
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
+    let newValue = e.target.value;
+    if (newValue.length > MAX_NOTE_LENGTH) {
+      newValue = newValue.substring(0, MAX_NOTE_LENGTH);
+    }
     setNotes(newValue);
     try {
       localStorage.setItem(storageKey, newValue);
@@ -46,9 +50,13 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
         <textarea
           value={notes}
           onChange={handleNoteChange}
+          maxLength={MAX_NOTE_LENGTH}
           className="w-full h-64 bg-input-dark p-4 text-white resize-none"
           placeholder="Jot down your notes here..."
         ></textarea>
+        <div className="px-4 pb-4 text-right text-xs text-gray-500">
+          {notes.length}/{MAX_NOTE_LENGTH}
+        </div>
       </div>
     </div>
   );
