@@ -1,11 +1,10 @@
-# QA Issue form for DamienLove/QA-Verify-Track
-# Add this file to .github/ISSUE_TEMPLATE/qa_issue_form.yml in your repository.
 name: "QA / Bug Report"
-description: "Use this form to report issues, crashes, UI problems, or feature requests. Select extra sections you want to fill in using 'Add more info'."
-title: "QA Issue: ${{ inputs.summary }}"
+description: "Template to report QA issues or bugs. Provide a summary, steps to reproduce, expected vs actual behavior, and any attachments or logs."
+title: "QA VERIFY AND TRACK - BUG"
 labels:
   - "triage"
   - "qa"
+  - "bug"
 body:
   - type: dropdown
     id: severity
@@ -13,19 +12,13 @@ body:
       label: "Severity"
       description: "Choose the severity of the issue."
       options:
-        - label: "0 (Critical)"
-          value: "0"
-        - label: "1 (Severe)"
-          value: "1"
-        - label: "2 (High)"
-          value: "2"
-        - label: "3 (Med)"
-          value: "3"
-        - label: "4 (Low)"
-          value: "4"
-        - label: "5 (Document, Request, or Suggestion)"
-          value: "5"
-      default: 2
+        - "0 (Critical)"
+        - "1 (Severe)"
+        - "2 (High)"
+        - "3 (Med)"
+        - "4 (Low)"
+        - "5 (Document, Request, or Suggestion)"
+      default: "2 (High)"
     validations:
       required: true
 
@@ -52,53 +45,31 @@ body:
     id: description
     attributes:
       label: "Issue Description"
-      description: |
-        Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes.
+      description: "Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes."
       placeholder: |
-        ___________________________________________________
-        ___________________________________________________
-        ___________________________________________________
-        ___________________________________________________
+         "Detailed description of the issue"
     validations:
-      required: true
-      min_length: 10
+      required: false
 
-  - type: checkboxes
-    id: add_more_info
-    attributes:
-      label: "Add more info"
-      description: "Select the additional sections you will fill in below. (Fields appear below — fill them only if you selected the corresponding option.)"
-      options:
-        - label: "Steps to Reproduce"
-        - label: "Expected vs. Actual"
-        - label: "Photos (images only)"
-        - label: "Location of issue (page/section)"
-        - label: "Crash log or other file attachment (non-photo)"
-        - label: "OS / Environment"
-
-  # --- Steps to Reproduce (fill only if you selected 'Steps to Reproduce') ---
   - type: textarea
     id: steps_to_reproduce
     attributes:
       label: "Steps to Reproduce"
-      description: |
-        Fill this out only if you selected "Steps to Reproduce" in Add more info.
-        Use the numbered template below. Add additional steps by continuing the numbering.
+      description: "Use the numbered template below. Add additional steps by continuing the numbering."
       placeholder: |
-        1. ___________________________________________________
-        2. ___________________________________________________
-        3. ___________________________________________________
-        (Add more numbered lines as needed)
+       " 1. 
+        2. 
+        3. 
+        (Add more numbered lines as needed)"
     validations:
       required: false
 
-  # --- Expected vs Actual (fill only if you selected 'Expected vs. Actual') ---
   - type: textarea
     id: expected_results
     attributes:
       label: "Expected Results"
-      description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what you expected to happen."
-      placeholder: "Expected results: _________________________________________________________"
+      description: "'Expected vs. Actual'. Describe what you expected to happen."
+      placeholder: "Expected results: "
     validations:
       required: false
 
@@ -106,18 +77,16 @@ body:
     id: actual_results
     attributes:
       label: "Actual Results"
-      description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what actually happened."
-      placeholder: "Actual results: _________________________________________________________"
+      description: "'Expected vs. Actual'. Describe what actually happened."
+      placeholder: "Actual results: "
     validations:
       required: false
 
-  # --- Photos (images only) (fill only if you selected 'Photos') ---
   - type: textarea
     id: photos
     attributes:
       label: "Photos (attach via issue UI or paste image links)"
-      description: |
-        GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image URLs here (e.g., uploaded to cloud or image host). For each image, include a short description in the Photo Description field below.
+      description: "GitHub issue forms do not support a direct file upload field. After submitting the form, attach screenshots/images using the GitHub issue editor (drag & drop) or paste image links into the form."
       placeholder: |
         Photo link or note: https://...
         Photo 1 filename or brief note
@@ -128,12 +97,11 @@ body:
     id: photo_description
     attributes:
       label: "Photo Description"
-      description: "Describe each attached photo. Fill this only if you selected 'Photos'."
+      description: "Describe each attached photo."
       placeholder: "Photo 1: ...\nPhoto 2: ..."
     validations:
       required: false
 
-  # --- Location of issue (page/section) (fill only if you selected 'Location of issue') ---
   - type: input
     id: location_of_issue
     attributes:
@@ -148,17 +116,15 @@ body:
     attributes:
       label: "Location Details"
       description: "Any additional details about the location (navigation steps, user role, etc.)"
-      placeholder: "_____________________________________________________________"
+      placeholder: "Home Page/Repo Page/Issues Page"
     validations:
       required: false
 
-  # --- Crash log or other file attachment (non-photo) ---
   - type: textarea
     id: other_files
     attributes:
       label: "Crash log or other file (paste logs or provide links)"
-      description: |
-        GitHub issue forms do not support file inputs. Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link.
+      description: "Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link."
     validations:
       required: false
 
@@ -166,22 +132,20 @@ body:
     id: other_files_description
     attributes:
       label: "File Description"
-      description: "Describe the attached file(s) or the links you provided. Fill this only if you attached files or pasted links."
+      description: "Describe the attached file(s) or the links you provided."
       placeholder: "e.g., crash_log_2026-01-14.txt contains full stack trace for crash"
     validations:
       required: false
 
-  # --- OS / Environment ---
   - type: input
     id: os_environment
     attributes:
       label: "OS / Environment"
-      description: "Operating system, OS version, device, browser and version (if applicable). Fill this only if you selected 'OS / Environment'."
+      description: "Operating system, OS version, device, browser and version (if applicable)."
       placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
     validations:
       required: false
 
-  # --- Optional: Additional notes ---
   - type: textarea
     id: additional_notes
     attributes:
