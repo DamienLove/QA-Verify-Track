@@ -2,10 +2,11 @@
 # Add this file to .github/ISSUE_TEMPLATE/qa_issue_form.yml in your repository.
 name: "QA / Bug Report"
 description: "Use this form to report issues, crashes, UI problems, or feature requests. Select extra sections you want to fill in using 'Add more info'."
-title: "QA Issue: ${{ inputs.summary }}"
+title: "QA VERIFY AND TRACK - BUG"
 labels:
   - "triage"
   - "qa"
+  - "bug"
 body:
   - type: dropdown
     id: severity
@@ -13,18 +14,12 @@ body:
       label: "Severity"
       description: "Choose the severity of the issue."
       options:
-        - label: "0 (Critical)"
-          value: "0"
-        - label: "1 (Severe)"
-          value: "1"
-        - label: "2 (High)"
-          value: "2"
-        - label: "3 (Med)"
-          value: "3"
-        - label: "4 (Low)"
-          value: "4"
-        - label: "5 (Document, Request, or Suggestion)"
-          value: "5"
+        - "0 (Critical)"
+        -  "1 (Severe)"
+        - "2 (High)"       
+        -  "3 (Med)"
+        - "4 (Low)"
+        - "5 (Document, Request, or Suggestion)"
       default: 2
     validations:
       required: true
