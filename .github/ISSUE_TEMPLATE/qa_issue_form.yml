@@ -1,7 +1,4 @@
-# QA Issue form for DamienLove/QA-Verify-Track
-# Add this file to .github/ISSUE_TEMPLATE/qa_issue_form.yml in your repository.
 name: "QA / Bug Report"
-description: "Use this form to report issues, crashes, UI problems, or feature requests. Select extra sections you want to fill in using 'Add more info'."
 title: "QA VERIFY AND TRACK - BUG"
 labels:
   - "triage"
@@ -15,9 +12,9 @@ body:
       description: "Choose the severity of the issue."
       options:
         - "0 (Critical)"
-        -  "1 (Severe)"
+        - "1 (Severe)"
         - "2 (High)"       
-        -  "3 (Med)"
+        - "3 (Med)"
         - "4 (Low)"
         - "5 (Document, Request, or Suggestion)"
       default: 2
@@ -50,28 +47,12 @@ body:
       description: |
         Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes.
       placeholder: |
-        ___________________________________________________
-        ___________________________________________________
-        ___________________________________________________
-        ___________________________________________________
+
     validations:
       required: true
       min_length: 10
 
-  - type: checkboxes
-    id: add_more_info
-    attributes:
-      label: "Add more info"
-      description: "Select the additional sections you will fill in below. (Fields appear below — fill them only if you selected the corresponding option.)"
-      options:
-        - label: "Steps to Reproduce"
-        - label: "Expected vs. Actual"
-        - label: "Photos (images only)"
-        - label: "Location of issue (page/section)"
-        - label: "Crash log or other file attachment (non-photo)"
-        - label: "OS / Environment"
 
-  # --- Steps to Reproduce (fill only if you selected 'Steps to Reproduce') ---
   - type: textarea
     id: steps_to_reproduce
     attributes:
@@ -80,20 +61,20 @@ body:
         Fill this out only if you selected "Steps to Reproduce" in Add more info.
         Use the numbered template below. Add additional steps by continuing the numbering.
       placeholder: |
-        1. ___________________________________________________
-        2. ___________________________________________________
-        3. ___________________________________________________
+        1. 
+        2. 
+        3. 
         (Add more numbered lines as needed)
     validations:
       required: false
 
-  # --- Expected vs Actual (fill only if you selected 'Expected vs. Actual') ---
+
   - type: textarea
     id: expected_results
     attributes:
       label: "Expected Results"
       description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what you expected to happen."
-      placeholder: "Expected results: _________________________________________________________"
+      placeholder: "Expected results: "
     validations:
       required: false
 
@@ -102,11 +83,11 @@ body:
     attributes:
       label: "Actual Results"
       description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what actually happened."
-      placeholder: "Actual results: _________________________________________________________"
+      placeholder: "Actual results: "
     validations:
       required: false
 
-  # --- Photos (images only) (fill only if you selected 'Photos') ---
+
   - type: textarea
     id: photos
     attributes:
@@ -128,7 +109,7 @@ body:
     validations:
       required: false
 
-  # --- Location of issue (page/section) (fill only if you selected 'Location of issue') ---
+
   - type: input
     id: location_of_issue
     attributes:
@@ -143,11 +124,11 @@ body:
     attributes:
       label: "Location Details"
       description: "Any additional details about the location (navigation steps, user role, etc.)"
-      placeholder: "_____________________________________________________________"
+      placeholder: ""
     validations:
       required: false
 
-  # --- Crash log or other file attachment (non-photo) ---
+
   - type: textarea
     id: other_files
     attributes:
@@ -166,7 +147,7 @@ body:
     validations:
       required: false
 
-  # --- OS / Environment ---
+
   - type: input
     id: os_environment
     attributes:
@@ -176,7 +157,7 @@ body:
     validations:
       required: false
 
-  # --- Optional: Additional notes ---
+
   - type: textarea
     id: additional_notes
     attributes:
