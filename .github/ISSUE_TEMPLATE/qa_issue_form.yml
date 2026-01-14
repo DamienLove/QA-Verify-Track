@@ -1,7 +1,7 @@
 # QA Issue form for DamienLove/QA-Verify-Track
 # Add this file to .github/ISSUE_TEMPLATE/qa_issue_form.yml in your repository.
-name: QA / Bug Report
-description: Use this form to report issues, crashes, UI problems, or feature requests. Select extra sections you want to fill in using "Add more info".
+name: "QA / Bug Report"
+description: "Use this form to report issues, crashes, UI problems, or feature requests. Select extra sections you want to fill in using 'Add more info'."
 title: "QA Issue: ${{ inputs.summary }}"
 labels:
   - "triage"
@@ -29,7 +29,7 @@ body:
     validations:
       required: true
 
-  - type: number
+  - type: input
     id: build_number
     attributes:
       label: "Build Number"
@@ -97,7 +97,6 @@ body:
         (Add more numbered lines as needed)
     validations:
       required: false
-      min_length: 0
 
   # --- Expected vs Actual (fill only if you selected 'Expected vs. Actual') ---
   - type: textarea
@@ -128,7 +127,6 @@ body:
         NOTE: GitHub may not strictly enforce file types; please attach image files (png/jpg).
     validations:
       required: false
-      # validations for attachments are limited; keep optional
 
   - type: textarea
     id: photo_description
