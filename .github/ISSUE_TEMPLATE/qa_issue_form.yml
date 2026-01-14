@@ -44,8 +44,7 @@ body:
     id: description
     attributes:
       label: "Issue Description"
-      description: |
-        "Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes."
+      description: "Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes."
       placeholder: |
          "Detailed description of the issue"
     validations:
@@ -57,9 +56,7 @@ body:
     id: steps_to_reproduce
     attributes:
       label: "Steps to Reproduce"
-      description: |
-        "Fill this out only if you selected "Steps to Reproduce" in Add more info.
-        Use the numbered template below. Add additional steps by continuing the numbering."
+      description: "Use the numbered template below. Add additional steps by continuing the numbering."
       placeholder: |
        " 1. 
         2. 
@@ -73,7 +70,7 @@ body:
     id: expected_results
     attributes:
       label: "Expected Results"
-      description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what you expected to happen."
+      description: "'Expected vs. Actual'. Describe what you expected to happen."
       placeholder: "Expected results: "
     validations:
       required: false
@@ -82,7 +79,7 @@ body:
     id: actual_results
     attributes:
       label: "Actual Results"
-      description: "Fill this out only if you selected 'Expected vs. Actual'. Describe what actually happened."
+      description: "'Expected vs. Actual'. Describe what actually happened."
       placeholder: "Actual results: "
     validations:
       required: false
@@ -92,8 +89,7 @@ body:
     id: photos
     attributes:
       label: "Photos (attach via issue UI or paste image links)"
-      description: |
-        "GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image URLs here (e.g., uploaded to cloud or image host). For each image, include a short description in the Photo Description field below."
+      description: "GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image URLs here (e.g., uploaded to cloud or image host). For each image, include a short description in the Photo Description field below."
       placeholder: |
         Photo link or note: https://...
         Photo 1 filename or brief note
@@ -104,7 +100,7 @@ body:
     id: photo_description
     attributes:
       label: "Photo Description"
-      description: "Describe each attached photo. Fill this only if you selected 'Photos'."
+      description: "Describe each attached photo."
       placeholder: "Photo 1: ...\nPhoto 2: ..."
     validations:
       required: false
@@ -133,8 +129,7 @@ body:
     id: other_files
     attributes:
       label: "Crash log or other file (paste logs or provide links)"
-      description: |
-        "GitHub issue forms do not support file inputs. Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link."
+      description: "Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link."
     validations:
       required: false
 
@@ -142,7 +137,7 @@ body:
     id: other_files_description
     attributes:
       label: "File Description"
-      description: "Describe the attached file(s) or the links you provided. Fill this only if you attached files or pasted links."
+      description: "Describe the attached file(s) or the links you provided."
       placeholder: "e.g., crash_log_2026-01-14.txt contains full stack trace for crash"
     validations:
       required: false
@@ -152,7 +147,7 @@ body:
     id: os_environment
     attributes:
       label: "OS / Environment"
-      description: "Operating system, OS version, device, browser and version (if applicable). Fill this only if you selected 'OS / Environment'."
+      description: "Operating system, OS version, device, browser and version (if applicable)'."
       placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
     validations:
       required: false
