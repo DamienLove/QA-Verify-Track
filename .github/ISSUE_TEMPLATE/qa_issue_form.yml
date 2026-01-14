@@ -1,4 +1,5 @@
 name: "QA / Bug Report"
+description: "Template to report QA issues or bugs. Provide a summary, steps to reproduce, expected vs actual behavior, and any attachments or logs."
 title: "QA VERIFY AND TRACK - BUG"
 labels:
   - "triage"
@@ -13,11 +14,11 @@ body:
       options:
         - "0 (Critical)"
         - "1 (Severe)"
-        - "2 (High)"       
+        - "2 (High)"
         - "3 (Med)"
         - "4 (Low)"
         - "5 (Document, Request, or Suggestion)"
-      default: 2
+      default: "2 (High)"
     validations:
       required: true
 
@@ -85,7 +86,7 @@ body:
     id: photos
     attributes:
       label: "Photos (attach via issue UI or paste image links)"
-      description: "GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image links into the form."
+      description: "GitHub issue forms do not support a direct file upload field. After submitting the form, attach screenshots/images using the GitHub issue editor (drag & drop) or paste image links into the form."
       placeholder: |
         Photo link or note: https://...
         Photo 1 filename or brief note
@@ -140,7 +141,162 @@ body:
     id: os_environment
     attributes:
       label: "OS / Environment"
-      description: "Operating system, OS version, device, browser and version (if applicable)'."
+      description: "Operating system, OS version, device, browser and version (if applicable)."
+      placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_notes
+    attributes:
+      label: "Additional notes"
+      description: "Any other details the QA or dev team should know."
+      placeholder: "Optional additional context"
+    validations:
+      required: falsename: "QA / Bug Report"
+description: "Template to report QA issues or bugs. Provide a summary, steps to reproduce, expected vs actual behavior, and any attachments or logs."
+title: "QA VERIFY AND TRACK - BUG"
+labels:
+  - "triage"
+  - "qa"
+  - "bug"
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      description: "Choose the severity of the issue."
+      options:
+        - "0 (Critical)"
+        - "1 (Severe)"
+        - "2 (High)"
+        - "3 (Med)"
+        - "4 (Low)"
+        - "5 (Document, Request, or Suggestion)"
+      default: "2 (High)"
+    validations:
+      required: true
+
+  - type: input
+    id: build_number
+    attributes:
+      label: "Build Number"
+      description: "Enter the build number (numeric)."
+      placeholder: "e.g. 20260114 or 1234"
+    validations:
+      required: false
+
+  - type: input
+    id: summary
+    attributes:
+      label: "Issue Summary"
+      description: "Short one-line summary of the issue."
+      placeholder: "Brief summary"
+    validations:
+      required: true
+      min_length: 5
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Issue Description"
+      description: "Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes."
+      placeholder: |
+         "Detailed description of the issue"
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "Use the numbered template below. Add additional steps by continuing the numbering."
+      placeholder: |
+       " 1. 
+        2. 
+        3. 
+        (Add more numbered lines as needed)"
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected_results
+    attributes:
+      label: "Expected Results"
+      description: "'Expected vs. Actual'. Describe what you expected to happen."
+      placeholder: "Expected results: "
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual_results
+    attributes:
+      label: "Actual Results"
+      description: "'Expected vs. Actual'. Describe what actually happened."
+      placeholder: "Actual results: "
+    validations:
+      required: false
+
+  - type: textarea
+    id: photos
+    attributes:
+      label: "Photos (attach via issue UI or paste image links)"
+      description: "GitHub issue forms do not support a direct file upload field. After submitting the form, attach screenshots/images using the GitHub issue editor (drag & drop) or paste image links into the form."
+      placeholder: |
+        Photo link or note: https://...
+        Photo 1 filename or brief note
+    validations:
+      required: false
+
+  - type: textarea
+    id: photo_description
+    attributes:
+      label: "Photo Description"
+      description: "Describe each attached photo."
+      placeholder: "Photo 1: ...\nPhoto 2: ..."
+    validations:
+      required: false
+
+  - type: input
+    id: location_of_issue
+    attributes:
+      label: "Location of issue (page / section)"
+      description: "Where in the app or webapp did this occur? Page, section, or workflow."
+      placeholder: "e.g., Settings > Profile > Change Password"
+    validations:
+      required: false
+
+  - type: textarea
+    id: location_details
+    attributes:
+      label: "Location Details"
+      description: "Any additional details about the location (navigation steps, user role, etc.)"
+      placeholder: "Home Page/Repo Page/Issues Page"
+    validations:
+      required: false
+
+  - type: textarea
+    id: other_files
+    attributes:
+      label: "Crash log or other file (paste logs or provide links)"
+      description: "Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link."
+    validations:
+      required: false
+
+  - type: textarea
+    id: other_files_description
+    attributes:
+      label: "File Description"
+      description: "Describe the attached file(s) or the links you provided."
+      placeholder: "e.g., crash_log_2026-01-14.txt contains full stack trace for crash"
+    validations:
+      required: false
+
+  - type: input
+    id: os_environment
+    attributes:
+      label: "OS / Environment"
+      description: "Operating system, OS version, device, browser and version (if applicable)."
       placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
     validations:
       required: false
