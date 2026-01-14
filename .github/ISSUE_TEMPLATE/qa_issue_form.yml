@@ -1,4 +1,5 @@
 name: "QA / Bug Report"
+description: "Template to report QA issues or bugs. Provide a summary, steps to reproduce, expected vs actual behavior, and any attachments or logs."
 title: "QA VERIFY AND TRACK - BUG"
 labels:
   - "triage"
@@ -13,7 +14,7 @@ body:
       options:
         - "0 (Critical)"
         - "1 (Severe)"
-        - "2 (High)"       
+        - "2 (High)"
         - "3 (Med)"
         - "4 (Low)"
         - "5 (Document, Request, or Suggestion)"
@@ -85,7 +86,7 @@ body:
     id: photos
     attributes:
       label: "Photos (attach via issue UI or paste image links)"
-      description: "GitHub issue forms do not support direct file upload fields. Please attach screenshots/images using the GitHub issue editor (drag & drop) after submitting the form, or paste image links into the form."
+      description: "GitHub issue forms do not support a direct file upload field. After submitting the form, attach screenshots/images using the GitHub issue editor (drag & drop) or paste image links into the form."
       placeholder: |
         Photo link or note: https://...
         Photo 1 filename or brief note
@@ -140,7 +141,7 @@ body:
     id: os_environment
     attributes:
       label: "OS / Environment"
-      description: "Operating system, OS version, device, browser and version (if applicable)'."
+      description: "Operating system, OS version, device, browser and version (if applicable)."
       placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
     validations:
       required: false
