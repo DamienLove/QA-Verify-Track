@@ -820,12 +820,12 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     // Initial Fetch
     useEffect(() => {
         if (repo && activeToken) {
-            handleSync(false); // Initial load without auto-populating build number
+            handleSync(false, false); // Initial load using cache
         }
     }, [repo, activeToken]);
 
     // fetchStoreBuild: when true, try to auto-populate build number from stored app config (no external store fetch to avoid CORS)
-    const handleSync = async (fetchStoreBuild: boolean = false) => {
+    const handleSync = async (fetchStoreBuild: boolean = false, forceRefresh: boolean = false) => {
         setLoading(true);
         setSyncError('');
         if (!activeToken) {
@@ -842,8 +842,8 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
 
         try {
             const [fetchedIssues, fetchedPrs] = await Promise.all([
-                githubService.getIssues(repo.owner, repo.name),
-                githubService.getPullRequests(repo.owner, repo.name)
+                githubService.getIssues(repo.owner, repo.name, 'open', forceRefresh),
+                githubService.getPullRequests(repo.owner, repo.name, undefined, forceRefresh)
             ]);
 
             const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]*(?:build\s*)?v?\s*(\d+)\b/gi;
@@ -1170,7 +1170,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                             <input className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
                             <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => handleSync(false)}
+                                    onClick={() => handleSync(false, true)}
                                     aria-label="Sync with GitHub"
                                     className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
                                 >
@@ -1178,7 +1178,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                     <span className="text-xs font-bold hidden sm:inline">Sync</span>
                                 </button>
                                 <button
-                                    onClick={() => handleSync(true)}
+                                    onClick={() => handleSync(true, true)}
                                     aria-label="Sync with Store"
                                     className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
                                 >
