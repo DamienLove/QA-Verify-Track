@@ -4,6 +4,8 @@ import { Issue, PullRequest } from '../types';
 let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: any[] }>();
+const statsCache = new Map<string, { timestamp: number; count: number }>();
+const STATS_CACHE_TTL = 60000; // 60 seconds
 
 const getOctokit = async (token?: string): Promise<Octokit> => {
   if (token) {
@@ -31,6 +33,7 @@ export const githubService = {
   initialize: (token: string) => {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
+    statsCache.clear(); // Clear stats cache when switching tokens/users
   },
 
   getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
@@ -341,18 +344,34 @@ export const githubService = {
   },
 
   getOpenIssueCount: async (owner: string, repo: string, token?: string): Promise<number> => {
+    const cacheKey = `issue-${owner}-${repo}`;
+    const cached = statsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+      return cached.count;
+    }
+
     const api = await getOctokit(token);
     const response = await api.search.issuesAndPullRequests({
       q: `repo:${owner}/${repo} is:issue is:open`,
     });
+
+    statsCache.set(cacheKey, { timestamp: Date.now(), count: response.data.total_count });
     return response.data.total_count;
   },
 
   getOpenPullRequestCount: async (owner: string, repo: string, token?: string): Promise<number> => {
+    const cacheKey = `pr-${owner}-${repo}`;
+    const cached = statsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+      return cached.count;
+    }
+
     const api = await getOctokit(token);
     const response = await api.search.issuesAndPullRequests({
       q: `repo:${owner}/${repo} is:pr is:open`,
     });
+
+    statsCache.set(cacheKey, { timestamp: Date.now(), count: response.data.total_count });
     return response.data.total_count;
   }
 };

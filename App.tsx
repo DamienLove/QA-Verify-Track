@@ -201,10 +201,10 @@ const HomePage = ({
         <div className="relative flex h-full min-h-screen w-full flex-col overflow-hidden pb-20">
             <header className="sticky top-0 z-10 flex items-center justify-between bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md p-4 pb-2 border-b border-gray-200 dark:border-white/5">
                 <div className="flex items-center gap-3">
-                    <div className="relative group cursor-pointer" onClick={() => signOut(auth)}>
+                    <button className="relative group cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background-light dark:focus-visible:ring-offset-background-dark" onClick={() => signOut(auth)} aria-label="Sign out" title="Sign out">
                         <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.email}`} className="size-10 rounded-full border-2 border-transparent hover:border-primary transition-colors bg-surface-dark" alt="Profile" />
                         <div className="absolute bottom-0 right-0 size-3 bg-primary rounded-full border-2 border-background-light dark:border-background-dark"></div>
-                    </div>
+                    </button>
                     <div>
                         <h2 className="text-xl font-bold leading-tight tracking-tight">My Projects</h2>
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate max-w-[150px]">{user.email}</p>
