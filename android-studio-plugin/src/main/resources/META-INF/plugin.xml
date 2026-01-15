@@ -1,0 +1,11 @@
+<idea-plugin>
+    <id>com.damienlove.qaverifytrack</id>
+    <name>QA Verify &amp; Track</name>
+    <vendor>Damien Love</vendor>
+
+    <depends>com.intellij.modules.androidstudio</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="QA Verify &amp; Track" factoryClass="com.damienlove.qaverifytrack.toolWindow.QAVTToolWindowFactory" anchor="right"/>
+    </extensions>
+</idea-plugin>
