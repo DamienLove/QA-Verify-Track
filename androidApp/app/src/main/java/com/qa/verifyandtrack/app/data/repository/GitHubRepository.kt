@@ -4,6 +4,7 @@ import com.qa.verifyandtrack.app.data.model.Comment
 import com.qa.verifyandtrack.app.data.model.Issue
 import com.qa.verifyandtrack.app.data.model.PullRequest
 import com.qa.verifyandtrack.app.data.model.PullRequestDetail
+import com.qa.verifyandtrack.app.data.model.PullRequestFile
 import com.qa.verifyandtrack.app.data.service.GitHubService
 
 class GitHubRepository(private val gitHubService: GitHubService) {
@@ -15,11 +16,14 @@ class GitHubRepository(private val gitHubService: GitHubService) {
     suspend fun getIssueComments(owner: String, repo: String, issueNumber: Int, lastUpdated: String? = null): List<Comment> =
         gitHubService.getIssueComments(owner, repo, issueNumber, lastUpdated)
 
-    suspend fun getPullRequests(owner: String, repo: String): List<PullRequest> =
-        gitHubService.getPullRequests(owner, repo)
+    suspend fun getPullRequests(owner: String, repo: String, state: String = "open", head: String? = null): List<PullRequest> =
+        gitHubService.getPullRequests(owner, repo, state, head)
 
     suspend fun getPullRequest(owner: String, repo: String, pullNumber: Int): PullRequestDetail =
         gitHubService.getPullRequest(owner, repo, pullNumber)
+
+    suspend fun getPullRequestFiles(owner: String, repo: String, pullNumber: Int): List<PullRequestFile> =
+        gitHubService.getPullRequestFiles(owner, repo, pullNumber)
 
     suspend fun createIssue(owner: String, repo: String, title: String, body: String, labels: List<String>): Issue =
         gitHubService.createIssue(owner, repo, title, body, labels)
@@ -44,6 +48,9 @@ class GitHubRepository(private val gitHubService: GitHubService) {
 
     suspend fun updateBranch(owner: String, repo: String, pullNumber: Int): Boolean =
         gitHubService.updateBranch(owner, repo, pullNumber)
+
+    suspend fun deleteBranch(owner: String, repo: String, branch: String): Result<Unit> =
+        gitHubService.deleteBranch(owner, repo, branch)
 
     suspend fun getOpenIssueCount(owner: String, repo: String): Int =
         gitHubService.getOpenIssueCount(owner, repo)

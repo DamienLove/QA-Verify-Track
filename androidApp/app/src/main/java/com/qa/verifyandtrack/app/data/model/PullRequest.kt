@@ -19,6 +19,8 @@ data class PullRequest(
     val title: String = "",
     val branch: String = "",
     val targetBranch: String = "",
+    val sourceOwner: String = "",
+    val sourceRepo: String = "",
     val author: Author = Author(),
     val hasConflicts: Boolean = false,
     val isDraft: Boolean = false,

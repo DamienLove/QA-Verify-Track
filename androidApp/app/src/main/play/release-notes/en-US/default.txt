@@ -1,5 +1,6 @@
-v3.1 Release
-- Added manual build number entry on Dashboard.
-- Improved build selection with dropdown history.
-- Fixed Dashboard UI to ensure issue list is visible.
-- Ensure app works fully standalone without webapp.
+v14 Release
+- Added multi-select PR actions with Ready + Merge, Merge, Ready, and Deny.
+- Added PR detail view with changed files, merge status, and commenting.
+- Added issue filter options (QA Issues, All Open Issues, Issues w/o Build Numbers).
+- Added merged-branch cleanup toggle (delete single-use branches by default).
+- Added in-app Projects view that embeds the first GitHub Project.

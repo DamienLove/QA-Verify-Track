@@ -248,17 +248,52 @@ class DashboardViewModel : ViewModel() {
         _analysisResult.value = null
     }
 
-    fun mergePR(prNumber: Int) {
+    fun mergePR(pullRequest: PullRequest, deleteBranches: Boolean) {
         val repo = _repo.value ?: return
+        if (pullRequest.isDraft) {
+            _error.value = "Draft PRs cannot be merged. Tap Ready or Ready + Merge first."
+            return
+        }
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(repo.githubToken ?: "")
-                gitHubRepository.mergePR(repo.owner, repo.name, prNumber)
+                val mergeResult = gitHubRepository.mergePR(repo.owner, repo.name, pullRequest.number)
+                if (mergeResult.isSuccess) {
+                    maybeDeleteBranchAfterMerge(repo, pullRequest, deleteBranches)
+                }
+                mergeResult
             }
             if (result.isSuccess) {
                 syncGitHub()
             } else {
                 _error.value = result.exceptionOrNull()?.message ?: "Merge failed."
+            }
+        }
+    }
+
+    fun readyAndMergePR(pullRequest: PullRequest, deleteBranches: Boolean) {
+        val repo = _repo.value ?: return
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                gitHubRepository.initialize(repo.githubToken ?: "")
+                val readyResult = if (pullRequest.isDraft) {
+                    gitHubRepository.markReadyForReview(repo.owner, repo.name, pullRequest.number)
+                } else {
+                    Result.success(Unit)
+                }
+                if (readyResult.isFailure) {
+                    return@withContext readyResult
+                }
+                val mergeResult = gitHubRepository.mergePR(repo.owner, repo.name, pullRequest.number)
+                if (mergeResult.isSuccess) {
+                    maybeDeleteBranchAfterMerge(repo, pullRequest, deleteBranches)
+                }
+                mergeResult
+            }
+            if (result.isSuccess) {
+                syncGitHub()
+            } else {
+                _error.value = result.exceptionOrNull()?.message ?: "Ready + merge failed."
             }
         }
     }
@@ -269,6 +304,106 @@ class DashboardViewModel : ViewModel() {
             withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(repo.githubToken ?: "")
                 gitHubRepository.denyPR(repo.owner, repo.name, prNumber)
+            }
+            syncGitHub()
+        }
+    }
+
+    fun mergeSelectedPRs(pullRequests: List<PullRequest>, deleteBranches: Boolean) {
+        if (pullRequests.isEmpty()) return
+        val repo = _repo.value ?: return
+        viewModelScope.launch {
+            val failures = mutableListOf<String>()
+            withContext(Dispatchers.IO) {
+                gitHubRepository.initialize(repo.githubToken ?: "")
+                pullRequests.forEach { pr ->
+                    if (pr.isDraft) {
+                        failures.add("PR #${pr.number}: draft PRs cannot be merged.")
+                        return@forEach
+                    }
+                    val mergeResult = gitHubRepository.mergePR(repo.owner, repo.name, pr.number)
+                    if (mergeResult.isSuccess) {
+                        val deleteError = maybeDeleteBranchAfterMerge(repo, pr, deleteBranches)
+                        if (!deleteError.isNullOrBlank()) {
+                            failures.add("PR #${pr.number}: $deleteError")
+                        }
+                    } else {
+                        failures.add("PR #${pr.number}: ${mergeResult.exceptionOrNull()?.message ?: "Merge failed."}")
+                    }
+                }
+            }
+            syncGitHub()
+            if (failures.isNotEmpty()) {
+                _error.value = failures.joinToString("\n")
+            }
+        }
+    }
+
+    fun readySelectedPRs(pullRequests: List<PullRequest>) {
+        if (pullRequests.isEmpty()) return
+        val repo = _repo.value ?: return
+        viewModelScope.launch {
+            val failures = mutableListOf<String>()
+            withContext(Dispatchers.IO) {
+                gitHubRepository.initialize(repo.githubToken ?: "")
+                pullRequests.forEach { pr ->
+                    val result = gitHubRepository.markReadyForReview(repo.owner, repo.name, pr.number)
+                    if (result.isFailure) {
+                        failures.add("PR #${pr.number}: ${result.exceptionOrNull()?.message ?: "Ready failed."}")
+                    }
+                }
+            }
+            syncGitHub()
+            if (failures.isNotEmpty()) {
+                _error.value = failures.joinToString("\n")
+            }
+        }
+    }
+
+    fun readyAndMergeSelectedPRs(pullRequests: List<PullRequest>, deleteBranches: Boolean) {
+        if (pullRequests.isEmpty()) return
+        val repo = _repo.value ?: return
+        viewModelScope.launch {
+            val failures = mutableListOf<String>()
+            withContext(Dispatchers.IO) {
+                gitHubRepository.initialize(repo.githubToken ?: "")
+                pullRequests.forEach { pr ->
+                    val readyResult = if (pr.isDraft) {
+                        gitHubRepository.markReadyForReview(repo.owner, repo.name, pr.number)
+                    } else {
+                        Result.success(Unit)
+                    }
+                    if (readyResult.isFailure) {
+                        failures.add("PR #${pr.number}: ${readyResult.exceptionOrNull()?.message ?: "Ready failed."}")
+                        return@forEach
+                    }
+                    val mergeResult = gitHubRepository.mergePR(repo.owner, repo.name, pr.number)
+                    if (mergeResult.isSuccess) {
+                        val deleteError = maybeDeleteBranchAfterMerge(repo, pr, deleteBranches)
+                        if (!deleteError.isNullOrBlank()) {
+                            failures.add("PR #${pr.number}: $deleteError")
+                        }
+                    } else {
+                        failures.add("PR #${pr.number}: ${mergeResult.exceptionOrNull()?.message ?: "Merge failed."}")
+                    }
+                }
+            }
+            syncGitHub()
+            if (failures.isNotEmpty()) {
+                _error.value = failures.joinToString("\n")
+            }
+        }
+    }
+
+    fun denySelectedPRs(pullRequests: List<PullRequest>) {
+        if (pullRequests.isEmpty()) return
+        val repo = _repo.value ?: return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                gitHubRepository.initialize(repo.githubToken ?: "")
+                pullRequests.forEach { pr ->
+                    gitHubRepository.denyPR(repo.owner, repo.name, pr.number)
+                }
             }
             syncGitHub()
         }
@@ -297,6 +432,31 @@ class DashboardViewModel : ViewModel() {
             } else {
                 _error.value = result.exceptionOrNull()?.message ?: "Failed to mark PR ready for review."
             }
+        }
+    }
+
+    private suspend fun maybeDeleteBranchAfterMerge(
+        repo: Repository,
+        pullRequest: PullRequest,
+        deleteBranches: Boolean
+    ): String? {
+        if (!deleteBranches) return null
+        val branch = pullRequest.branch.trim()
+        if (branch.isBlank()) return "Branch name missing."
+        if (branch == pullRequest.targetBranch) return "Skipped deleting base branch."
+        val sourceOwner = pullRequest.sourceOwner.ifBlank { repo.owner }
+        if (sourceOwner != repo.owner) return "Skipped deleting fork branch."
+        val headQuery = "$sourceOwner:$branch"
+        val related = runCatching {
+            gitHubRepository.getPullRequests(repo.owner, repo.name, state = "all", head = headQuery)
+        }.getOrDefault(emptyList())
+        if (related.isEmpty()) return "Unable to confirm branch usage."
+        if (related.size > 1) return "Branch used by multiple PRs; kept."
+        val result = gitHubRepository.deleteBranch(repo.owner, repo.name, branch)
+        return if (result.isFailure) {
+            result.exceptionOrNull()?.message ?: "Failed to delete branch."
+        } else {
+            null
         }
     }
 

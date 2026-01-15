@@ -9,12 +9,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import android.net.Uri
 import com.qa.verifyandtrack.app.ui.screens.auth.LoginScreen
 import com.qa.verifyandtrack.app.ui.screens.config.ConfigurationScreen
 import com.qa.verifyandtrack.app.ui.screens.config.RepoDetailScreen
 import com.qa.verifyandtrack.app.ui.screens.dashboard.DashboardScreen
 import com.qa.verifyandtrack.app.ui.screens.home.HomeScreen
 import com.qa.verifyandtrack.app.ui.screens.issuedetail.IssueDetailScreen
+import com.qa.verifyandtrack.app.ui.screens.prdetail.PullRequestDetailScreen
+import com.qa.verifyandtrack.app.ui.screens.project.ProjectWebViewScreen
 import com.qa.verifyandtrack.app.ui.screens.profile.ProfileScreen
 import com.qa.verifyandtrack.app.ui.screens.quickissue.QuickIssueScreen
 import com.qa.verifyandtrack.app.ui.screens.upgrade.UpgradeScreen
@@ -65,6 +68,27 @@ fun QAAppNavHost(
             val repoId = backStackEntry.arguments?.getString("repoId")
             val issueNumber = backStackEntry.arguments?.getInt("issueNumber")
             IssueDetailScreen(navController = navController, repoId = repoId, issueNumber = issueNumber)
+        }
+        composable(
+            route = Screen.PullRequestDetail.route,
+            arguments = listOf(
+                navArgument("repoId") { type = NavType.StringType },
+                navArgument("pullNumber") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val repoId = backStackEntry.arguments?.getString("repoId")
+            val pullNumber = backStackEntry.arguments?.getInt("pullNumber")
+            PullRequestDetailScreen(navController = navController, repoId = repoId, pullNumber = pullNumber)
+        }
+        composable(
+            route = Screen.ProjectWebView.route,
+            arguments = listOf(
+                navArgument("encodedUrl") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val encodedUrl = backStackEntry.arguments?.getString("encodedUrl").orEmpty()
+            val url = Uri.decode(encodedUrl)
+            ProjectWebViewScreen(navController = navController, projectUrl = url)
         }
         composable(
             route = Screen.QuickIssue.route,

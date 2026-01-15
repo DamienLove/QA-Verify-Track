@@ -27,6 +27,9 @@ fun RepoFormDialog(
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var token by remember { mutableStateOf(initial?.githubToken ?: "") }
     var avatarUrl by remember { mutableStateOf(initial?.avatarUrl ?: "") }
+    var projectsInput by remember {
+        mutableStateOf(initial?.projects?.joinToString(", ").orEmpty())
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -38,10 +41,20 @@ fun RepoFormDialog(
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Repo Name") })
                 OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text("GitHub Token") })
                 OutlinedTextField(value = avatarUrl, onValueChange = { avatarUrl = it }, label = { Text("Avatar URL") })
+                OutlinedTextField(
+                    value = projectsInput,
+                    onValueChange = { projectsInput = it },
+                    label = { Text("Project URLs (comma-separated)") },
+                    minLines = 2
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = {
+                val projects = projectsInput
+                    .split(',', '\n')
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
                 val repo = Repository(
                     id = initial?.id ?: UUID.randomUUID().toString(),
                     owner = owner.trim(),
@@ -50,7 +63,8 @@ fun RepoFormDialog(
                     githubToken = token.trim().ifBlank { null },
                     avatarUrl = avatarUrl.trim().ifBlank { null },
                     apps = initial?.apps ?: emptyList(),
-                    isConnected = initial?.isConnected ?: true
+                    isConnected = initial?.isConnected ?: true,
+                    projects = projects
                 )
                 onSave(repo)
             }) {

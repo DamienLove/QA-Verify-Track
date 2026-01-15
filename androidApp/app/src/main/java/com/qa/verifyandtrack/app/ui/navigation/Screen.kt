@@ -25,6 +25,12 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector?
     data object IssueDetail : Screen("issueDetail/{repoId}/{issueNumber}", "Issue Detail") {
         fun createRoute(repoId: String, issueNumber: Int) = "issueDetail/$repoId/$issueNumber"
     }
+    data object PullRequestDetail : Screen("pullRequestDetail/{repoId}/{pullNumber}", "PR Detail") {
+        fun createRoute(repoId: String, pullNumber: Int) = "pullRequestDetail/$repoId/$pullNumber"
+    }
+    data object ProjectWebView : Screen("projectWebView/{encodedUrl}", "Project") {
+        fun createRoute(url: String): String = "projectWebView/${Uri.encode(url)}"
+    }
     data object QuickIssue : Screen("quickIssue/{repoId}?build={build}", "Quick Issue", Icons.Filled.Build) {
         fun createRoute(repoId: String, build: String? = null): String {
             val trimmed = build?.trim().orEmpty()

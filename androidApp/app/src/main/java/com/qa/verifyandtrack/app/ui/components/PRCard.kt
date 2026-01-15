@@ -1,5 +1,6 @@
 package com.qa.verifyandtrack.app.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,9 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgeDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
@@ -35,10 +36,14 @@ import com.qa.verifyandtrack.app.ui.theme.Spacing
 @Composable
 fun PRCard(
     pullRequest: PullRequest,
+    selected: Boolean = false,
+    onSelectionChange: (Boolean) -> Unit = {},
+    onTitleClick: () -> Unit = {},
     onMerge: () -> Unit = {},
     onDeny: () -> Unit = {},
     onResolveConflict: () -> Unit = {},
     onReadyForReview: () -> Unit = {},
+    onReadyAndMerge: () -> Unit = {},
     canMergePR: Boolean = false,
     canDenyPR: Boolean = false,
     canResolve: Boolean = false
@@ -50,12 +55,21 @@ fun PRCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = pullRequest.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
-                )
+                ) {
+                    Checkbox(checked = selected, onCheckedChange = onSelectionChange)
+                    Spacer(modifier = Modifier.width(Spacing.Small))
+                    Text(
+                        text = pullRequest.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onTitleClick() }
+                    )
+                }
                 if (pullRequest.isDraft) {
                     Badge(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
                         Text("Draft", style = MaterialTheme.typography.labelSmall)
@@ -86,6 +100,14 @@ fun PRCard(
                         )
                         Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
                         Text("Ready")
+                    }
+                    TextButton(onClick = onReadyAndMerge) {
+                        Icon(
+                            if (canMergePR) Icons.Filled.DoneAll else Icons.Filled.Lock,
+                            contentDescription = if (canMergePR) "Ready and Merge" else "Pro Feature"
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.ExtraSmall))
+                        Text("Ready + Merge")
                     }
                 }
                 TextButton(onClick = onMerge) {

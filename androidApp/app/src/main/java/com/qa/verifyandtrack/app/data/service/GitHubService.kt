@@ -5,6 +5,7 @@ import com.qa.verifyandtrack.app.data.model.Comment
 import com.qa.verifyandtrack.app.data.model.Issue
 import com.qa.verifyandtrack.app.data.model.PullRequest
 import com.qa.verifyandtrack.app.data.model.PullRequestDetail
+import com.qa.verifyandtrack.app.data.model.PullRequestFile
 import com.qa.verifyandtrack.app.data.model.Reporter
 import com.qa.verifyandtrack.app.data.model.Author
 import okhttp3.Interceptor
@@ -14,6 +15,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Headers
 import retrofit2.http.PATCH
@@ -117,14 +119,14 @@ class GitHubService {
         }
     }
 
-    suspend fun getPullRequests(owner: String, repo: String): List<PullRequest> {
+    suspend fun getPullRequests(owner: String, repo: String, state: String = "open", head: String? = null): List<PullRequest> {
         requireToken()
         return try {
             val allPulls = mutableListOf<PullRequestResponse>()
             var page = 1
             val perPage = 100
             while (true) {
-                val pageItems = api.listPulls(owner, repo, page = page, perPage = perPage)
+                val pageItems = api.listPulls(owner, repo, state = state, head = head, page = page, perPage = perPage)
                 if (pageItems.isEmpty()) break
                 allPulls.addAll(pageItems)
                 if (pageItems.size < perPage) break
@@ -149,6 +151,25 @@ class GitHubService {
             isDraft = response.draft ?: false,
             changedFiles = response.changedFiles ?: 0
         )
+    }
+
+    suspend fun getPullRequestFiles(owner: String, repo: String, pullNumber: Int): List<PullRequestFile> {
+        requireToken()
+        return try {
+            val files = mutableListOf<PullRequestFileResponse>()
+            var page = 1
+            val perPage = 100
+            while (true) {
+                val pageItems = api.listPullFiles(owner, repo, pullNumber, page = page, perPage = perPage)
+                if (pageItems.isEmpty()) break
+                files.addAll(pageItems)
+                if (pageItems.size < perPage) break
+                page++
+            }
+            files.map { mapPullFile(it) }
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     suspend fun createIssue(owner: String, repo: String, title: String, body: String, labels: List<String>): Issue {
@@ -240,6 +261,21 @@ class GitHubService {
         return response.totalCount ?: 0
     }
 
+    suspend fun deleteBranch(owner: String, repo: String, branch: String): Result<Unit> {
+        requireToken()
+        if (branch.isBlank()) return Result.failure(IllegalArgumentException("Branch name is blank."))
+        return try {
+            val response = api.deleteBranch(owner, repo, branch)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(IllegalStateException(responseErrorMessage(response)))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun mapIssue(issue: IssueResponse): Issue {
         val labels = issue.labels?.mapNotNull { it.name } ?: emptyList()
         val priority = mapPriority(labels)
@@ -274,6 +310,8 @@ class GitHubService {
             title = pr.title.orEmpty(),
             branch = pr.head?.ref.orEmpty(),
             targetBranch = pr.base?.ref.orEmpty(),
+            sourceOwner = pr.head?.repo?.owner?.login.orEmpty(),
+            sourceRepo = pr.head?.repo?.name.orEmpty(),
             author = Author(
                 name = pr.user?.login.orEmpty(),
                 avatar = pr.user?.avatarUrl.orEmpty()
@@ -282,6 +320,18 @@ class GitHubService {
             isDraft = pr.draft ?: false,
             status = if (pr.draft == true) "draft" else "open",
             filesChanged = 0
+        )
+    }
+
+    private fun mapPullFile(file: PullRequestFileResponse): PullRequestFile {
+        return PullRequestFile(
+            filename = file.filename.orEmpty(),
+            status = file.status.orEmpty(),
+            additions = file.additions ?: 0,
+            deletions = file.deletions ?: 0,
+            changes = file.changes ?: 0,
+            patch = file.patch,
+            previousFilename = file.previousFilename
         )
     }
 
@@ -342,6 +392,7 @@ private interface GitHubApi {
         @Query("state") state: String = "open",
         @Query("sort") sort: String = "updated",
         @Query("direction") direction: String = "desc",
+        @Query("head") head: String? = null,
         @Query("page") page: Int = 1,
         @Query("per_page") perPage: Int = 100
     ): List<PullRequestResponse>
@@ -352,6 +403,15 @@ private interface GitHubApi {
         @Path("repo") repo: String,
         @Path("pull_number") pullNumber: Int
     ): PullRequestDetailResponse
+
+    @GET("repos/{owner}/{repo}/pulls/{pull_number}/files")
+    suspend fun listPullFiles(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("pull_number") pullNumber: Int,
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 100
+    ): List<PullRequestFileResponse>
 
     @POST("repos/{owner}/{repo}/issues")
     suspend fun createIssue(
@@ -417,6 +477,13 @@ private interface GitHubApi {
         @Path("pull_number") pullNumber: Int
     ): Response<Unit>
 
+    @DELETE("repos/{owner}/{repo}/git/refs/heads/{ref}")
+    suspend fun deleteBranch(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path(value = "ref", encoded = true) ref: String
+    ): Response<Unit>
+
     @GET("search/issues")
     suspend fun searchIssues(@Query("q") query: String): SearchIssuesResponse
 }
@@ -445,7 +512,18 @@ private data class IssueResponse(
 )
 
 private data class PullRefResponse(
-    val ref: String? = null
+    val ref: String? = null,
+    val repo: PullRepoResponse? = null
+)
+
+private data class PullRepoResponse(
+    val name: String? = null,
+    @SerializedName("full_name") val fullName: String? = null,
+    val owner: PullRepoOwnerResponse? = null
+)
+
+private data class PullRepoOwnerResponse(
+    val login: String? = null
 )
 
 private data class PullRequestResponse(
@@ -467,6 +545,16 @@ private data class PullRequestDetailResponse(
     @SerializedName("mergeable_state") val mergeableState: String? = null,
     val draft: Boolean? = null,
     @SerializedName("changed_files") val changedFiles: Int? = null
+)
+
+private data class PullRequestFileResponse(
+    val filename: String? = null,
+    val status: String? = null,
+    val additions: Int? = null,
+    val deletions: Int? = null,
+    val changes: Int? = null,
+    val patch: String? = null,
+    @SerializedName("previous_filename") val previousFilename: String? = null
 )
 
 private data class CommentResponse(

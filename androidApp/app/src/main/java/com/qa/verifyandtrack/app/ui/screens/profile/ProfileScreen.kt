@@ -10,11 +10,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.qa.verifyandtrack.app.BuildConfig
+import com.qa.verifyandtrack.app.data.AppPreferences
 import com.qa.verifyandtrack.app.data.model.SubscriptionTier
 import com.qa.verifyandtrack.app.ui.components.library.QAButton
 import com.qa.verifyandtrack.app.ui.components.library.QACard
@@ -33,6 +35,8 @@ fun ProfileScreen(navController: NavHostController, viewModel: ProfileViewModel 
     val themeMode by viewModel.themeMode.collectAsState()
     var showThemeDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var deleteBranchesEnabled by remember { mutableStateOf(AppPreferences.isDeleteBranchesEnabled(context)) }
 
     Scaffold(
         topBar = {
@@ -194,6 +198,41 @@ fun ProfileScreen(navController: NavHostController, viewModel: ProfileViewModel 
                         TextButton(onClick = { showThemeDialog = true }) {
                             Text("Change")
                         }
+                    }
+
+                    Divider()
+
+                    // Delete merged branches setting
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.Default),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.DeleteSweep, contentDescription = null)
+                            Column {
+                                Text(
+                                    "Delete merged branches",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    "Delete branches used in a single PR",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = deleteBranchesEnabled,
+                            onCheckedChange = { enabled ->
+                                deleteBranchesEnabled = enabled
+                                AppPreferences.setDeleteBranchesEnabled(context, enabled)
+                            }
+                        )
                     }
 
                     Divider()
