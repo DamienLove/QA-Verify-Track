@@ -21,7 +21,7 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        androidStudio("2025.2.4")
+        local("C:/Program Files/Android/Android Studio")
     }
 }
 
