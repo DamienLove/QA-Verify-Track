@@ -2,8 +2,9 @@ import os
 from PIL import Image
 
 def update_icons():
-    source_icon_path = "play_console_assets/dev_style_icon.png"
-    res_path = "app/src/main/res"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    source_icon_path = os.path.join(script_dir, "..", "..", "branding", "qavt_01_shield_check_512.png")
+    res_path = os.path.join(script_dir, "..", "app", "src", "main", "res")
     
     if not os.path.exists(source_icon_path):
         print(f"Error: Source icon not found at {source_icon_path}")

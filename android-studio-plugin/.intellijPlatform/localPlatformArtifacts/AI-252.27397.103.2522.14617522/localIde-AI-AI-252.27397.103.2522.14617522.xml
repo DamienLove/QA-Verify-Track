@@ -1,0 +1,10 @@
+<ivy-module version="2.0">
+  <info organisation="localIde" module="AI" revision="AI-252.27397.103.2522.14617522" />
+  <configurations>
+    <conf name="default" visibility="public" />
+  </configurations>
+  <publications>
+    <artifact name="Program Files/Android/Android Studio" ext="directory" conf="default" />
+  </publications>
+  <dependencies />
+</ivy-module>

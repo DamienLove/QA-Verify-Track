@@ -10,7 +10,7 @@ plugins {
 }
 
 play {
-    serviceAccountCredentials.set(rootProject.file("../pulselink-24899-557c966b2570.json"))
+    serviceAccountCredentials.set(rootProject.file("signing/service-account-key.json"))
     defaultToAppBundles.set(true)
     track.set("internal")
     resolutionStrategy.set(com.github.triplet.gradle.androidpublisher.ResolutionStrategy.AUTO)
@@ -36,8 +36,8 @@ android {
         applicationId = "com.qa.verifyandtrack.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "11"
+        versionCode = 13
+        versionName = "13"
         val geminiKey = localProps.getProperty("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
 
