@@ -17,6 +17,7 @@ androidApp/.gradle
 androidApp/build
 androidApp/app/build
 androidApp/gradle-8.7/
+android-studio-plugin/build
 *.iml
 androidApp/keystore.properties
 androidApp/signing/*.jks

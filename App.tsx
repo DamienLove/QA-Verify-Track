@@ -274,8 +274,10 @@ const ConfigurationPage = ({
     setGlobalSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>
 }) => {
     const navigate = useNavigate();
-    const [view, setView] = useState<'list' | 'edit' | 'global'>('list');
-    const [activeRepoId, setActiveRepoId] = useState<string | null>(null);
+    const [searchParams] = useSearchParams();
+    const repoParam = searchParams.get('repo');
+    const [view, setView] = useState<'list' | 'edit' | 'global'>('list');       
+    const [activeRepoId, setActiveRepoId] = useState<string | null>(null);      
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
 
@@ -331,6 +333,15 @@ const ConfigurationPage = ({
         }
         setView('edit');
     };
+
+    useEffect(() => {
+        if (!repoParam || repos.length === 0) return;
+        if (activeRepoId === repoParam && view === 'edit') return;
+        const repo = repos.find(r => r.id === repoParam);
+        if (repo) {
+            startEdit(repo);
+        }
+    }, [repoParam, repos, activeRepoId, view]);
 
     const addApp = () => {
         const newApp: AppConfig = {
