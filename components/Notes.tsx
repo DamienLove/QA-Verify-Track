@@ -21,6 +21,16 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
     }
   }, [isOpen, userId, storageKey]);
 
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleEsc);
+    }
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isOpen, onClose]);
+
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     let newValue = e.target.value;
     if (newValue.length > MAX_NOTE_LENGTH) {
@@ -40,9 +50,14 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
-      <div className="bg-surface-dark rounded-lg shadow-2xl w-full max-w-md mx-4">
+      <div
+        className="bg-surface-dark rounded-lg shadow-2xl w-full max-w-md mx-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notes-modal-title"
+      >
         <div className="p-4 flex justify-between items-center border-b border-white/10">
-          <h2 className="text-lg font-bold">Notes</h2>
+          <h2 id="notes-modal-title" className="text-lg font-bold">Notes</h2>
           <button onClick={onClose} aria-label="Close Notes">
             <span className="material-symbols-outlined">close</span>
           </button>
@@ -51,10 +66,13 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
           value={notes}
           onChange={handleNoteChange}
           maxLength={MAX_NOTE_LENGTH}
-          className="w-full h-64 bg-input-dark p-4 text-white resize-none"
+          className="w-full h-64 bg-input-dark p-4 text-white resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
           placeholder="Jot down your notes here..."
+          autoFocus
+          aria-labelledby="notes-modal-title"
+          aria-describedby="notes-char-count"
         ></textarea>
-        <div className="px-4 pb-4 text-right text-xs text-gray-500">
+        <div id="notes-char-count" className="px-4 pb-4 text-right text-xs text-gray-500">
           {notes.length}/{MAX_NOTE_LENGTH}
         </div>
       </div>

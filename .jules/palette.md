@@ -5,3 +5,7 @@
 ## 2024-05-22 - Semantic Buttons for Interactions
 **Learning:** Interactive elements like profile pictures acting as sign-out triggers must be implemented as `<button>` elements, not clickable `<div>`s. This ensures keyboard accessibility (Tab, Enter/Space) and proper ARIA role exposure.
 **Action:** Always use `<button>` for clickable actions that are not links, ensuring they have `aria-label` if icon-only and visible focus indicators (`focus-visible:ring`).
+
+## 2024-05-23 - Modal Accessibility Standards
+**Learning:** Modals require explicit focus management (autoFocus on primary input), keyboard support (Escape to close), and proper ARIA roles (`role="dialog"`, `aria-modal="true"`) to be fully accessible. Character counters should be linked via `aria-describedby`.
+**Action:** When implementing modals, always add `autoFocus`, `aria-labelledby`, `aria-describedby` (if applicable), and `useEffect` listener for Escape key.
