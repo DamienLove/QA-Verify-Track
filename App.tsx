@@ -1093,9 +1093,23 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
 
         try {
             // 1. Fetch details to confirm conflict
-            const details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
+            let details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
             
-            // mergeable state: true (clean), false (conflict), null (unknown/computing)
+            // Poll if mergeable is null (unknown/computing)
+            let retries = 0;
+            while (details.mergeable === null && retries < 5) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
+                retries++;
+            }
+
+            if (details.mergeable === null) {
+                setPrError('GitHub is computing mergeability. Please try again in a few moments.');
+                setPrProcessing(null);
+                return;
+            }
+
+            // mergeable state: true (clean), false (conflict)
             if (details.mergeable === true) {
                  // It's actually fine, update UI
                  setPrs(prev => prev.map(p => p.id === pr.id ? { ...p, hasConflicts: false } : p));
@@ -1103,7 +1117,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                  return;
             }
     
-            // If mergeable is false (conflicts) or null (we might try anyway or wait, let's try update)
+            // If mergeable is false (conflicts)
             // Attempt auto-resolve (update branch)
             const success = await githubService.updateBranch(repo.owner, repo.name, pr.number);
             
