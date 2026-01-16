@@ -3,9 +3,16 @@ package com.qa.verifyandtrack.app.ui.screens.dashboard
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -13,8 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.qa.verifyandtrack.app.data.AppPreferences
@@ -53,9 +60,14 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
     var issueFilterMenuExpanded by remember { mutableStateOf(false) }
     var issueFilter by remember { mutableStateOf(IssueFilterOption.QA_ISSUES) }
     var selectedPrNumbers by remember { mutableStateOf(setOf<Int>()) }
-    var showBulkActions by remember { mutableStateOf(false) }
     val selectedPrs = pullRequests.filter { selectedPrNumbers.contains(it.number) }
     val hasSelection = selectedPrNumbers.isNotEmpty()
+    val selectAllState = when {
+        selectedPrNumbers.isEmpty() -> ToggleableState.Off
+        pullRequests.isNotEmpty() && selectedPrNumbers.size == pullRequests.size -> ToggleableState.On
+        else -> ToggleableState.Indeterminate
+    }
+    val allPrNumbers = remember(pullRequests) { pullRequests.map { it.number }.toSet() }
     val context = LocalContext.current
     val activity = LocalOnBackPressedDispatcherOwner.current as? androidx.activity.ComponentActivity
     val adService = remember { activity?.let { AdService(it) } }
@@ -64,18 +76,9 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
         viewModel.setRepoId(repoId)
     }
 
-    LaunchedEffect(hasSelection) {
-        if (hasSelection) {
-            showBulkActions = true
-        }
-    }
-
     LaunchedEffect(pullRequests) {
         val available = pullRequests.map { it.number }.toSet()
         selectedPrNumbers = selectedPrNumbers.intersect(available)
-        if (selectedPrNumbers.isEmpty()) {
-            showBulkActions = false
-        }
     }
 
     Scaffold(
@@ -320,6 +323,55 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                             if (pullRequests.isEmpty()) {
                                 item { EmptyState("No pull requests found.") }
                             } else {
+                                item {
+                                    QACard(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(Spacing.Default),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                TriStateCheckbox(
+                                                    state = selectAllState,
+                                                    onClick = {
+                                                        selectedPrNumbers = if (selectAllState == ToggleableState.On) {
+                                                            emptySet()
+                                                        } else {
+                                                            allPrNumbers
+                                                        }
+                                                    }
+                                                )
+                                                Spacer(modifier = Modifier.width(Spacing.Small))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "Select all PRs",
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    Text(
+                                                        text = if (hasSelection) {
+                                                            "${selectedPrNumbers.size} of ${pullRequests.size} selected"
+                                                        } else {
+                                                            "${pullRequests.size} total"
+                                                        },
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                            TextButton(
+                                                onClick = { selectedPrNumbers = emptySet() },
+                                                enabled = hasSelection
+                                            ) {
+                                                Text("Clear")
+                                            }
+                                        }
+                                    }
+                                }
                                 items(pullRequests) { pr ->
                                     PRCard(
                                         pullRequest = pr,
@@ -387,6 +439,98 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
                 }
             }
 
+            val showSelectionBar = activeTab == DashboardTab.PullRequests && hasSelection
+            AnimatedVisibility(
+                visible = showSelectionBar,
+                enter = fadeIn() + slideInVertically { it / 2 },
+                exit = fadeOut() + slideOutVertically { it / 2 }
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.Default)
+                        .padding(bottom = Spacing.Small),
+                    shape = MaterialTheme.shapes.large,
+                    tonalElevation = Elevation.Medium,
+                    shadowElevation = Elevation.Large
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.Default),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.Small)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${selectedPrs.size} selected",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            TextButton(onClick = { selectedPrNumbers = emptySet() }) {
+                                Text("Clear Selection")
+                            }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.Small),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(onClick = {
+                                if (FeatureGates.canMergePR(userProfile)) {
+                                    val deleteBranches = AppPreferences.isDeleteBranchesEnabled(context)
+                                    viewModel.readyAndMergeSelectedPRs(selectedPrs, deleteBranches)
+                                    selectedPrNumbers = emptySet()
+                                } else {
+                                    viewModel.showPaywallFor("Merge Pull Requests")
+                                }
+                            }) {
+                                Text("Ready + Merge")
+                            }
+
+                            OutlinedButton(onClick = {
+                                if (FeatureGates.canMergePR(userProfile)) {
+                                    viewModel.readySelectedPRs(selectedPrs)
+                                    selectedPrNumbers = emptySet()
+                                } else {
+                                    viewModel.showPaywallFor("Merge Pull Requests")
+                                }
+                            }) {
+                                Text("Ready")
+                            }
+
+                            OutlinedButton(onClick = {
+                                if (FeatureGates.canMergePR(userProfile)) {
+                                    val deleteBranches = AppPreferences.isDeleteBranchesEnabled(context)
+                                    viewModel.mergeSelectedPRs(selectedPrs, deleteBranches)
+                                    selectedPrNumbers = emptySet()
+                                } else {
+                                    viewModel.showPaywallFor("Merge Pull Requests")
+                                }
+                            }) {
+                                Text("Merge")
+                            }
+
+                            OutlinedButton(onClick = {
+                                if (FeatureGates.canDenyPR(userProfile)) {
+                                    viewModel.denySelectedPRs(selectedPrs)
+                                    selectedPrNumbers = emptySet()
+                                } else {
+                                    viewModel.showPaywallFor("Close Pull Requests")
+                                }
+                            }) {
+                                Text("Deny")
+                            }
+                        }
+                    }
+                }
+            }
+
             // Banner Ad for free users
             if (FeatureGates.shouldShowAds(userProfile)) {
                 BannerAd(modifier = Modifier.fillMaxWidth())
@@ -429,79 +573,6 @@ fun DashboardScreen(navController: NavHostController, repoId: String?, viewModel
         )
     }
 
-    if (showBulkActions && hasSelection) {
-        ModalBottomSheet(
-            onDismissRequest = { showBulkActions = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Spacing.Default),
-                verticalArrangement = Arrangement.spacedBy(Spacing.Small)
-            ) {
-                Text("PR Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("${selectedPrs.size} selected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                Button(onClick = {
-                    if (FeatureGates.canMergePR(userProfile)) {
-                        val deleteBranches = AppPreferences.isDeleteBranchesEnabled(context)
-                        viewModel.readyAndMergeSelectedPRs(selectedPrs, deleteBranches)
-                        selectedPrNumbers = emptySet()
-                        showBulkActions = false
-                    } else {
-                        viewModel.showPaywallFor("Merge Pull Requests")
-                    }
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Ready + Merge")
-                }
-
-                OutlinedButton(onClick = {
-                    if (FeatureGates.canMergePR(userProfile)) {
-                        viewModel.readySelectedPRs(selectedPrs)
-                        selectedPrNumbers = emptySet()
-                        showBulkActions = false
-                    } else {
-                        viewModel.showPaywallFor("Merge Pull Requests")
-                    }
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Ready")
-                }
-
-                OutlinedButton(onClick = {
-                    if (FeatureGates.canMergePR(userProfile)) {
-                        val deleteBranches = AppPreferences.isDeleteBranchesEnabled(context)
-                        viewModel.mergeSelectedPRs(selectedPrs, deleteBranches)
-                        selectedPrNumbers = emptySet()
-                        showBulkActions = false
-                    } else {
-                        viewModel.showPaywallFor("Merge Pull Requests")
-                    }
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Merge")
-                }
-
-                OutlinedButton(onClick = {
-                    if (FeatureGates.canDenyPR(userProfile)) {
-                        viewModel.denySelectedPRs(selectedPrs)
-                        selectedPrNumbers = emptySet()
-                        showBulkActions = false
-                    } else {
-                        viewModel.showPaywallFor("Close Pull Requests")
-                    }
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Deny")
-                }
-
-                TextButton(onClick = {
-                    selectedPrNumbers = emptySet()
-                    showBulkActions = false
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Clear Selection")
-                }
-            }
-        }
-    }
 }
 
 @Composable

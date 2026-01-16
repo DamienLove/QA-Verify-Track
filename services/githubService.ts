@@ -7,6 +7,28 @@ const commentsCache = new Map<string, { timestamp: string; data: any[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
+const decodeBase64 = (value: string) => {
+  if (typeof atob === "function") {
+    try {
+      return decodeURIComponent(escape(atob(value)));
+    } catch {
+      return atob(value);
+    }
+  }
+  return Buffer.from(value, "base64").toString("utf-8");
+};
+
+const encodeBase64 = (value: string) => {
+  if (typeof btoa === "function") {
+    try {
+      return btoa(unescape(encodeURIComponent(value)));
+    } catch {
+      return btoa(value);
+    }
+  }
+  return Buffer.from(value, "utf-8").toString("base64");
+};
+
 const getOctokit = async (token?: string): Promise<Octokit> => {
   if (token) {
     const { Octokit } = await import("@octokit/rest");
@@ -188,6 +210,66 @@ export const githubService = {
           pull_number: pullNumber
       });
       return data;
+  },
+
+  getPullRequestFiles: async (owner: string, repo: string, pullNumber: number) => {
+      const api = await getOctokit();
+      const files = await api.paginate(api.pulls.listFiles, {
+          owner,
+          repo,
+          pull_number: pullNumber,
+          per_page: 100
+      });
+      return files.map((file: any) => ({
+          filename: file.filename,
+          status: file.status,
+          additions: file.additions,
+          deletions: file.deletions,
+          changes: file.changes,
+          patch: file.patch
+      }));
+  },
+
+  getFileContent: async (owner: string, repo: string, path: string, ref: string) => {
+      const api = await getOctokit();
+      const { data } = await api.repos.getContent({
+          owner,
+          repo,
+          path,
+          ref
+      });
+      if (Array.isArray(data) || (data as any).type !== "file") {
+          throw new Error("Unsupported content type for file resolution.");
+      }
+      const file = data as any;
+      return {
+          content: decodeBase64(file.content || ""),
+          sha: file.sha,
+          path: file.path,
+          encoding: file.encoding
+      };
+  },
+
+  updateFileContent: async (
+      owner: string,
+      repo: string,
+      path: string,
+      branch: string,
+      content: string,
+      sha: string,
+      message: string
+  ) => {
+      const api = await getOctokit();
+      await api.repos.createOrUpdateFileContents({
+          owner,
+          repo,
+          path,
+          branch,
+          sha,
+          message,
+          content: encodeBase64(content)
+      });
+      return true;
   },
 
   createIssue: async (repoId: string, issue: Partial<Issue>, owner: string, repoName: string) => {

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams, Navigate, useParams } from 'react-router-dom';
-import { Repository, AppConfig, Issue, PullRequest, Comment, GlobalSettings } from './types';
+import { Repository, AppConfig, Issue, PullRequest, Comment, GlobalSettings, PullRequestFile } from './types';
 import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
@@ -459,14 +459,14 @@ const ConfigurationPage = ({
                                     <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDark ? 'translate-x-6' : ''}`}></div>
                                 </button>
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-2 qavt-theme-picker">
                                 <label className="text-sm font-medium text-slate-900 dark:text-white">Theme Color</label>
-                                <div className="grid grid-cols-5 gap-3">
+                                <div className="grid grid-cols-5 gap-3 qavt-theme-grid">
                                     {themes.map(t => (
                                         <button
                                             key={t.id}
                                             onClick={() => changeTheme(t.id)}
-                                            className={`w-full aspect-square rounded-lg border-2 ${currentTheme === t.id ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'} transition-all shadow-sm`}
+                                            className={`qavt-theme-swatch w-full aspect-square rounded-lg border-2 ${currentTheme === t.id ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'} transition-all shadow-sm`}
                                             style={{ backgroundColor: t.colors.primary }}
                                             title={t.name}
                                         />
@@ -815,6 +815,31 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const [prProcessing, setPrProcessing] = useState<number | null>(null);
     const [undoPr, setUndoPr] = useState<{id: number, pr: PullRequest} | null>(null);
     const [manualResolveIds, setManualResolveIds] = useState<Set<number>>(new Set());
+    const [selectedPrIds, setSelectedPrIds] = useState<Set<number>>(new Set());
+    const [bulkProcessing, setBulkProcessing] = useState(false);
+    const selectedPrs = prs.filter(pr => selectedPrIds.has(pr.id));
+    const allPrsSelected = prs.length > 0 && selectedPrIds.size === prs.length;
+    const somePrsSelected = selectedPrIds.size > 0 && !allPrsSelected;
+    const selectAllRef = useRef<HTMLInputElement | null>(null);
+
+    // Conflict resolution modal state
+    const [conflictPr, setConflictPr] = useState<PullRequest | null>(null);
+    const [conflictFiles, setConflictFiles] = useState<PullRequestFile[]>([]);
+    const [activeConflictFile, setActiveConflictFile] = useState<PullRequestFile | null>(null);
+    const [conflictFileData, setConflictFileData] = useState<{ base: string; head: string; headSha: string } | null>(null);
+    const [conflictLoading, setConflictLoading] = useState(false);
+    const [conflictError, setConflictError] = useState('');
+    const [resolvedFiles, setResolvedFiles] = useState<Set<string>>(new Set());
+    const [resolvingFile, setResolvingFile] = useState(false);
+    type ConflictSegment =
+        | { type: 'equal'; lines: string[] }
+        | { type: 'conflict'; baseLines: string[]; headLines: string[]; resolution?: 'current' | 'incoming' | 'both' };
+    const [conflictSegments, setConflictSegments] = useState<ConflictSegment[]>([]);
+    const [conflictSegmentOrder, setConflictSegmentOrder] = useState<number[]>([]);
+    const [conflictCursor, setConflictCursor] = useState(0);
+    const [fileConflictCounts, setFileConflictCounts] = useState<Record<string, number>>({});
+    const [selectedConflictFiles, setSelectedConflictFiles] = useState<Set<string>>(new Set());
+    const [conflictsCleared, setConflictsCleared] = useState(false);
 
     // AI Analysis State
   const [analyzingIds, setAnalyzingIds] = useState<Set<number>>(new Set());
@@ -856,6 +881,23 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 githubService.getIssues(repo.owner, repo.name),
                 githubService.getPullRequests(repo.owner, repo.name)
             ]);
+
+            const prsWithConflicts = await Promise.all(
+                fetchedPrs.map(async (pr) => {
+                    try {
+                        const details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
+                        const mergeableState = (details.mergeable_state || '').toLowerCase();
+                        const hasConflicts =
+                            details.mergeable === false ||
+                            mergeableState === 'dirty' ||
+                            mergeableState === 'conflicting';
+                        return { ...pr, hasConflicts };
+                    } catch (e) {
+                        console.warn('Failed to resolve conflict state for PR', pr.number, e);
+                        return pr;
+                    }
+                })
+            );
 
             const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]*(?:build\s*)?v?\s*(\d+)\b/gi;
             const verifyFixRegex = /\bverify\s*fix\b[^\d]*v?\s*(\d+)\b/gi;
@@ -904,7 +946,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             setAllIssues(fetchedIssues);
             setIssueBuildMap(statusBuildMap);
             setIssueVerifyFixMap(verifyFixBuildMap);
-            setPrs(fetchedPrs);
+            setPrs(prsWithConflicts);
         } catch (error) {
             console.error("Sync failed", error);
             setSyncError('Failed to sync GitHub data. Check your token and network.');
@@ -930,6 +972,24 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             return true;
         }));
     }, [buildNumber, allIssues, issueBuildMap, issueVerifyFixMap]);
+
+    useEffect(() => {
+        if (selectAllRef.current) {
+            selectAllRef.current.indeterminate = somePrsSelected;
+        }
+    }, [somePrsSelected]);
+
+    useEffect(() => {
+        if (prs.length === 0) {
+            setSelectedPrIds(new Set());
+            return;
+        }
+        const available = new Set(prs.map(pr => pr.id));
+        setSelectedPrIds(prev => {
+            const next = new Set([...prev].filter(id => available.has(id)));
+            return next;
+        });
+    }, [prs]);
 
     const startIssueAction = (issueId: number) => {
         setIssueActionIds(prev => new Set(prev).add(issueId));
@@ -1071,6 +1131,30 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     };
 
+    const toggleSelectAllPrs = () => {
+        if (allPrsSelected) {
+            setSelectedPrIds(new Set());
+        } else {
+            setSelectedPrIds(new Set(prs.map(pr => pr.id)));
+        }
+    };
+
+    const togglePrSelection = (prId: number) => {
+        setSelectedPrIds(prev => {
+            const next = new Set(prev);
+            if (next.has(prId)) {
+                next.delete(prId);
+            } else {
+                next.add(prId);
+            }
+            return next;
+        });
+    };
+
+    const clearPrSelection = () => {
+        setSelectedPrIds(new Set());
+    };
+
     const handleMergeSequence = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
         setPrError('');
@@ -1087,43 +1171,456 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     };
 
-    const handleResolveConflicts = async (pr: PullRequest) => {
+    const handleBulkReadyAndMerge = async () => {
+        if (!selectedPrs.length) return;
+        setBulkProcessing(true);
+        setPrError('');
+        try {
+            for (const pr of selectedPrs) {
+                await handleMergeSequence(pr);
+            }
+        } finally {
+            setBulkProcessing(false);
+            clearPrSelection();
+        }
+    };
+
+    const handleBulkReady = async () => {
+        if (!selectedPrs.length) return;
+        setBulkProcessing(true);
+        setPrError('');
+        try {
+            for (const pr of selectedPrs) {
+                if (pr.isDraft) {
+                    await githubService.markReadyForReview(repo.owner, repo.name, pr.number);
+                }
+            }
+            setPrs(prev => prev.map(p => selectedPrIds.has(p.id) ? { ...p, isDraft: false } : p));
+        } catch (e) {
+            console.error("Bulk ready failed", e);
+            setPrError('Failed to mark some PRs ready. Check permissions and try again.');
+        } finally {
+            setBulkProcessing(false);
+            clearPrSelection();
+        }
+    };
+
+    const handleBulkMerge = async () => {
+        if (!selectedPrs.length) return;
+        setBulkProcessing(true);
+        setPrError('');
+        try {
+            for (const pr of selectedPrs) {
+                await githubService.approvePR(repo.owner, repo.name, pr.number);
+                await githubService.mergePR(repo.owner, repo.name, pr.number);
+            }
+            setPrs(prev => prev.filter(p => !selectedPrIds.has(p.id)));
+        } catch (e) {
+            console.error("Bulk merge failed", e);
+            setPrError('Failed to merge some PRs. Confirm repo access and PR states.');
+        } finally {
+            setBulkProcessing(false);
+            clearPrSelection();
+        }
+    };
+
+    const handleBulkClose = async () => {
+        if (!selectedPrs.length) return;
+        setBulkProcessing(true);
+        setPrError('');
+        try {
+            for (const pr of selectedPrs) {
+                await githubService.denyPR(repo.owner, repo.name, pr.number);
+            }
+            setPrs(prev => prev.filter(p => !selectedPrIds.has(p.id)));
+        } catch (e) {
+            console.error("Bulk close failed", e);
+            setPrError('Failed to close some PRs. Check your permissions.');
+        } finally {
+            setBulkProcessing(false);
+            clearPrSelection();
+        }
+    };
+
+    const openConflictResolver = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
         setPrError('');
-
+        setConflictError('');
+        setConflictLoading(true);
         try {
-            // 1. Fetch details to confirm conflict
             const details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
-            
-            // mergeable state: true (clean), false (conflict), null (unknown/computing)
-            if (details.mergeable === true) {
-                 // It's actually fine, update UI
-                 setPrs(prev => prev.map(p => p.id === pr.id ? { ...p, hasConflicts: false } : p));
-                 setPrProcessing(null);
-                 return;
+            const mergeableState = (details.mergeable_state || '').toLowerCase();
+            const hasConflicts =
+                details.mergeable === false ||
+                mergeableState === 'dirty' ||
+                mergeableState === 'conflicting';
+
+            if (!hasConflicts) {
+                setPrs(prev => prev.map(p => p.id === pr.id ? { ...p, hasConflicts: false } : p));
+                return;
             }
-    
-            // If mergeable is false (conflicts) or null (we might try anyway or wait, let's try update)
-            // Attempt auto-resolve (update branch)
-            const success = await githubService.updateBranch(repo.owner, repo.name, pr.number);
-            
-            if (success) {
-                // Updated branch, GitHub will recompute mergeability.
-                // Let's hide it from list implying it's being handled/rebuilding
-                 setPrs(prev => prev.filter(p => p.id !== pr.id));
-            } else {
-                // Failed, likely complex conflict
-                 setManualResolveIds(prev => new Set(prev).add(pr.id));
-                 setPrError('Auto-resolve failed. Open the conflict view in GitHub.');
-            }
+
+            const files = await githubService.getPullRequestFiles(repo.owner, repo.name, pr.number);
+            setConflictPr(pr);
+            setConflictFiles(files);
+            setSelectedConflictFiles(new Set(files.map(file => file.filename)));
+            setFileConflictCounts({});
+            setConflictsCleared(false);
+            activateConflictFile(files[0] || null);
+            setResolvedFiles(new Set());
         } catch (e) {
             console.error("Resolve failed", e);
             setManualResolveIds(prev => new Set(prev).add(pr.id));
             setPrError('Resolve failed. Check permissions or try manually in GitHub.');
         } finally {
+            setConflictLoading(false);
             setPrProcessing(null);
         }
     };
+
+    const closeConflictResolver = () => {
+        setConflictPr(null);
+        setConflictFiles([]);
+        setActiveConflictFile(null);
+        setConflictFileData(null);
+        setResolvedFiles(new Set());
+        setConflictSegments([]);
+        setConflictSegmentOrder([]);
+        setConflictCursor(0);
+        setFileConflictCounts({});
+        setSelectedConflictFiles(new Set());
+        setConflictsCleared(false);
+        setConflictError('');
+        setConflictLoading(false);
+        setResolvingFile(false);
+    };
+
+    const buildConflictSegments = (baseText: string, headText: string) => {
+        const baseLines = baseText.length ? baseText.split('\n') : [];
+        const headLines = headText.length ? headText.split('\n') : [];
+        const maxCells = 2000000;
+        if (baseLines.length * headLines.length > maxCells) {
+            const segments: ConflictSegment[] = [{
+                type: 'conflict',
+                baseLines,
+                headLines
+            }];
+            return { segments, conflictIndices: [0] };
+        }
+
+        const dp: number[][] = Array.from({ length: baseLines.length + 1 }, () =>
+            new Array(headLines.length + 1).fill(0)
+        );
+
+        for (let i = baseLines.length - 1; i >= 0; i -= 1) {
+            for (let j = headLines.length - 1; j >= 0; j -= 1) {
+                if (baseLines[i] === headLines[j]) {
+                    dp[i][j] = dp[i + 1][j + 1] + 1;
+                } else {
+                    dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+                }
+            }
+        }
+
+        type DiffOp = { type: 'equal' | 'delete' | 'insert'; line: string };
+        const ops: DiffOp[] = [];
+        let i = 0;
+        let j = 0;
+        while (i < baseLines.length && j < headLines.length) {
+            if (baseLines[i] === headLines[j]) {
+                ops.push({ type: 'equal', line: baseLines[i] });
+                i += 1;
+                j += 1;
+            } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+                ops.push({ type: 'delete', line: baseLines[i] });
+                i += 1;
+            } else {
+                ops.push({ type: 'insert', line: headLines[j] });
+                j += 1;
+            }
+        }
+        while (i < baseLines.length) {
+            ops.push({ type: 'delete', line: baseLines[i] });
+            i += 1;
+        }
+        while (j < headLines.length) {
+            ops.push({ type: 'insert', line: headLines[j] });
+            j += 1;
+        }
+
+        const segments: ConflictSegment[] = [];
+        let conflict: { baseLines: string[]; headLines: string[] } | null = null;
+
+        const flushConflict = () => {
+            if (!conflict) return;
+            segments.push({
+                type: 'conflict',
+                baseLines: conflict.baseLines,
+                headLines: conflict.headLines
+            });
+            conflict = null;
+        };
+
+        for (const op of ops) {
+            if (op.type === 'equal') {
+                flushConflict();
+                const last = segments[segments.length - 1];
+                if (last && last.type === 'equal') {
+                    last.lines.push(op.line);
+                } else {
+                    segments.push({ type: 'equal', lines: [op.line] });
+                }
+            } else {
+                if (!conflict) {
+                    conflict = { baseLines: [], headLines: [] };
+                }
+                if (op.type === 'delete') {
+                    conflict.baseLines.push(op.line);
+                } else {
+                    conflict.headLines.push(op.line);
+                }
+            }
+        }
+        flushConflict();
+
+        const conflictIndices = segments.reduce((acc: number[], segment, index) => {
+            if (segment.type === 'conflict') acc.push(index);
+            return acc;
+        }, []);
+
+        return { segments, conflictIndices };
+    };
+
+    const buildResolvedContent = (segments: ConflictSegment[], baseEndsWithNewline: boolean) => {
+        const mergedLines: string[] = [];
+        for (const segment of segments) {
+            if (segment.type === 'equal') {
+                mergedLines.push(...segment.lines);
+            } else {
+                if (segment.resolution === 'incoming') {
+                    mergedLines.push(...segment.headLines);
+                } else if (segment.resolution === 'both') {
+                    mergedLines.push(...segment.baseLines, ...segment.headLines);
+                } else {
+                    mergedLines.push(...segment.baseLines);
+                }
+            }
+        }
+        let merged = mergedLines.join('\n');
+        if (baseEndsWithNewline && merged.length > 0) {
+            merged += '\n';
+        }
+        return merged;
+    };
+
+    const activateConflictFile = (file: PullRequestFile | null) => {
+        setActiveConflictFile(file);
+        setConflictFileData(null);
+        setConflictSegments([]);
+        setConflictSegmentOrder([]);
+        setConflictCursor(0);
+        setConflictError('');
+    };
+
+    const pickNextConflictFile = (
+        currentFilename: string | null,
+        resolvedSet: Set<string>,
+        selectedSet: Set<string>
+    ) => {
+        const selected = conflictFiles.filter(file => selectedSet.has(file.filename));
+        if (!selected.length) return null;
+        const startIndex = currentFilename ? selected.findIndex(file => file.filename === currentFilename) : -1;
+        for (let offset = 1; offset <= selected.length; offset += 1) {
+            const index = (startIndex + offset) % selected.length;
+            const candidate = selected[index];
+            if (!resolvedSet.has(candidate.filename)) {
+                return candidate;
+            }
+        }
+        return null;
+    };
+
+    const toggleConflictFileSelection = (filename: string) => {
+        setSelectedConflictFiles(prev => {
+            const next = new Set(prev);
+            if (next.has(filename)) {
+                next.delete(filename);
+            } else {
+                next.add(filename);
+            }
+            if (activeConflictFile?.filename === filename && !next.has(filename)) {
+                const nextFile = pickNextConflictFile(filename, resolvedFiles, next);
+                activateConflictFile(nextFile);
+            }
+            return next;
+        });
+    };
+
+    useEffect(() => {
+        if (!conflictPr || !activeConflictFile) return;
+        const load = async () => {
+            setConflictLoading(true);
+            setConflictError('');
+            try {
+                const [baseFile, headFile] = await Promise.all([
+                    githubService.getFileContent(repo.owner, repo.name, activeConflictFile.filename, conflictPr.targetBranch),
+                    githubService.getFileContent(repo.owner, repo.name, activeConflictFile.filename, conflictPr.branch)
+                ]);
+                const baseContent = baseFile.content;
+                const headContent = headFile.content;
+                setConflictFileData({
+                    base: baseContent,
+                    head: headContent,
+                    headSha: headFile.sha
+                });
+                const { segments, conflictIndices } = buildConflictSegments(baseContent, headContent);
+                setConflictSegments(segments);
+                setConflictSegmentOrder(conflictIndices);
+                setConflictCursor(0);
+                setFileConflictCounts(prev => ({ ...prev, [activeConflictFile.filename]: conflictIndices.length }));
+                if (conflictIndices.length === 0) {
+                    const nextResolved = new Set(resolvedFiles);
+                    nextResolved.add(activeConflictFile.filename);
+                    setResolvedFiles(nextResolved);
+                    const nextFile = pickNextConflictFile(activeConflictFile.filename, nextResolved, selectedConflictFiles);
+                    activateConflictFile(nextFile);
+                    return;
+                }
+            } catch (e) {
+                console.error('Failed to load conflict file', e);
+                setConflictError('Unable to load file contents for resolution.');
+            } finally {
+                setConflictLoading(false);
+            }
+        };
+        load();
+    }, [conflictPr?.id, activeConflictFile?.filename]);
+
+    const applyConflictResolution = async (mode: 'current' | 'incoming' | 'both') => {
+        if (!conflictPr || !activeConflictFile || !conflictFileData) return;
+        const conflictIndex = conflictSegmentOrder[conflictCursor];
+        if (conflictIndex === undefined) return;
+
+        const updatedSegments = conflictSegments.map((segment, index) => {
+            if (index !== conflictIndex || segment.type !== 'conflict') return segment;
+            return { ...segment, resolution: mode };
+        });
+        setConflictSegments(updatedSegments);
+
+        const isLastConflict = conflictCursor >= conflictSegmentOrder.length - 1;
+        if (!isLastConflict) {
+            setConflictCursor(prev => prev + 1);
+            return;
+        }
+
+        setResolvingFile(true);
+        setConflictError('');
+        try {
+            const mergedContent = buildResolvedContent(
+                updatedSegments,
+                conflictFileData.base.endsWith('\n')
+            );
+            await githubService.updateFileContent(
+                repo.owner,
+                repo.name,
+                activeConflictFile.filename,
+                conflictPr.branch,
+                mergedContent,
+                conflictFileData.headSha,
+                `Resolve conflict for ${activeConflictFile.filename}`
+            );
+            const nextResolved = new Set(resolvedFiles);
+            nextResolved.add(activeConflictFile.filename);
+            setResolvedFiles(nextResolved);
+            await refreshConflictStatus();
+            const nextFile = pickNextConflictFile(activeConflictFile.filename, nextResolved, selectedConflictFiles);
+            activateConflictFile(nextFile);
+        } catch (e) {
+            console.error('Failed to resolve conflict file', e);
+            setConflictError('Failed to update file. Try again or resolve in GitHub.');
+        } finally {
+            setResolvingFile(false);
+        }
+    };
+
+    const refreshConflictStatus = async () => {
+        if (!conflictPr) return;
+        setConflictLoading(true);
+        setConflictError('');
+        try {
+            const details = await githubService.getPullRequest(repo.owner, repo.name, conflictPr.number);
+            const mergeableState = (details.mergeable_state || '').toLowerCase();
+            const hasConflicts =
+                details.mergeable === false ||
+                mergeableState === 'dirty' ||
+                mergeableState === 'conflicting';
+            setPrs(prev => prev.map(p => p.id === conflictPr.id ? { ...p, hasConflicts } : p));
+            setConflictsCleared(!hasConflicts);
+            setConflictPr(prev => prev ? { ...prev, hasConflicts } : prev);
+            if (!hasConflicts) {
+                setManualResolveIds(prev => {
+                    const next = new Set(prev);
+                    next.delete(conflictPr.id);
+                    return next;
+                });
+            }
+        } catch (e) {
+            console.error('Failed to refresh conflict status', e);
+            setConflictError('Unable to refresh merge status. Try again.');
+        } finally {
+            setConflictLoading(false);
+        }
+    };
+
+    const attemptAutoResolve = async () => {
+        if (!conflictPr) return;
+        setConflictLoading(true);
+        setConflictError('');
+        try {
+            const success = await githubService.updateBranch(repo.owner, repo.name, conflictPr.number);
+            if (!success) {
+                setConflictError('Auto-resolve failed. Resolve conflicts manually or choose file-level options.');
+                return;
+            }
+            await refreshConflictStatus();
+        } catch (e) {
+            console.error('Auto-resolve failed', e);
+            setConflictError('Auto-resolve failed. Try again or resolve manually.');
+        } finally {
+            setConflictLoading(false);
+        }
+    };
+
+    const mergeResolvedConflictPr = async () => {
+        if (!conflictPr) return;
+        setConflictLoading(true);
+        setConflictError('');
+        try {
+            if (conflictPr.isDraft) {
+                await githubService.markReadyForReview(repo.owner, repo.name, conflictPr.number);
+            }
+            await githubService.approvePR(repo.owner, repo.name, conflictPr.number);
+            await githubService.mergePR(repo.owner, repo.name, conflictPr.number);
+            setPrs(prev => prev.filter(p => p.id !== conflictPr.id));
+            closeConflictResolver();
+        } catch (e) {
+            console.error('Merge after conflict resolution failed', e);
+            setConflictError('Merge failed. Confirm review status and try again.');
+        } finally {
+            setConflictLoading(false);
+        }
+    };
+
+    const selectedConflictFileList = conflictFiles.filter(file => selectedConflictFiles.has(file.filename));
+    const unresolvedSelectedFiles = selectedConflictFileList.filter(file => !resolvedFiles.has(file.filename));
+    const activeConflictSegmentIndex = conflictSegmentOrder[conflictCursor];
+    const activeConflictSegment = activeConflictSegmentIndex !== undefined
+        ? conflictSegments[activeConflictSegmentIndex]
+        : null;
+    const activeConflictCount = activeConflictFile
+        ? (fileConflictCounts[activeConflictFile.filename] ?? conflictSegmentOrder.length)
+        : 0;
+    const mergeReady = (selectedConflictFileList.length > 0 && unresolvedSelectedFiles.length === 0) || conflictsCleared;
 
     const handleClosePR = async (pr: PullRequest) => {
         setPrs(prev => prev.filter(p => p.id !== pr.id));
@@ -1297,20 +1794,58 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 {!loading && tab === 'prs' && (
                     <div className="space-y-3">
                         {prError && <div className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 text-xs px-3 py-2">{prError}</div>}
+                        {prs.length > 0 && (
+                            <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-surface-dark-lighter/80 p-3 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        ref={selectAllRef}
+                                        type="checkbox"
+                                        className="size-4 accent-primary"
+                                        checked={allPrsSelected}
+                                        onChange={toggleSelectAllPrs}
+                                    />
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white">Select all PRs</p>
+                                        <p className="text-[11px] text-gray-500">
+                                            {selectedPrIds.size > 0
+                                                ? `${selectedPrIds.size} of ${prs.length} selected`
+                                                : `${prs.length} total`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={clearPrSelection}
+                                    disabled={selectedPrIds.size === 0}
+                                    className="text-xs font-bold uppercase tracking-wider text-gray-500 disabled:opacity-40 hover:text-primary"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        )}
                         {prs.map(pr => {
                              const isProcessing = prProcessing === pr.id;
                              const isManual = manualResolveIds.has(pr.id);
 
                              return (
                                 <div key={pr.id} className="group relative bg-white dark:bg-[#1A1616] rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm transition-all animate-fade-in">
-                                    <div className="flex justify-between items-start mb-1.5">
-                                        <div className="pr-2">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                {pr.isDraft && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase tracking-wide">Draft</span>}
-                                                {pr.hasConflicts && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 uppercase tracking-wide flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">warning</span>Conflict</span>}
+                                    <div className="flex items-start gap-3 mb-1.5">
+                                        <input
+                                            type="checkbox"
+                                            className="mt-1 size-4 accent-primary"
+                                            checked={selectedPrIds.has(pr.id)}
+                                            onChange={() => togglePrSelection(pr.id)}
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <div className="pr-2">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {pr.isDraft && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase tracking-wide">Draft</span>}
+                                                        {pr.hasConflicts && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-500 uppercase tracking-wide flex items-center gap-1"><span className="material-symbols-outlined text-[12px]">warning</span>Conflict</span>}
+                                                    </div>
+                                                    <h3 className="text-slate-900 dark:text-white font-bold text-sm leading-tight">{pr.title}</h3>
+                                                    <div className="text-xs text-gray-500 mt-1">#{pr.number} - {pr.author.name}</div>
+                                                </div>
                                             </div>
-                                            <h3 className="text-slate-900 dark:text-white font-bold text-sm leading-tight">{pr.title}</h3>
-                                            <div className="text-xs text-gray-500 mt-1">#{pr.number} • {pr.author.name}</div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 font-mono bg-gray-50 dark:bg-white/5 p-1.5 rounded-lg border border-gray-200 dark:border-white/5">
@@ -1319,30 +1854,31 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                     
                                     <div className="flex gap-2">
                                         {pr.hasConflicts ? (
-                                            isManual ? (
-                                                <a 
-                                                    href={`https://github.com/${repo.owner}/${repo.name}/pull/${pr.number}/conflicts`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] hover:bg-amber-600/30"
-                                                >
-                                                    <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-                                                    Open in GitHub
-                                                </a>
-                                            ) : (
+                                            <>
                                                 <button 
                                                     disabled={isProcessing}
-                                                    onClick={() => handleResolveConflicts(pr)} 
+                                                    onClick={() => openConflictResolver(pr)} 
                                                     className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
                                                 >
-                                                    {isProcessing ? 'Resolving...' : (
+                                                    {isProcessing ? 'Loading...' : (
                                                         <>
                                                             <span className="material-symbols-outlined text-[16px]">build</span>
                                                             Resolve Conflicts
                                                         </>
                                                     )}
                                                 </button>
-                                            )
+                                                {isManual && (
+                                                    <a 
+                                                        href={`https://github.com/${repo.owner}/${repo.name}/pull/${pr.number}/conflicts`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex-1 bg-amber-600/10 text-amber-700 dark:text-amber-400 border border-amber-600/20 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] hover:bg-amber-600/20"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                                                        Open in GitHub
+                                                    </a>
+                                                )}
+                                            </>
                                         ) : (
                                             <button 
                                                 disabled={isProcessing}
@@ -1434,6 +1970,48 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                     </div>
                 )}
             </main>
+            {tab === 'prs' && selectedPrIds.size > 0 && (
+                <div className="fixed bottom-20 left-0 right-0 z-40 px-4">
+                    <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-surface-dark/95 p-3 text-white shadow-2xl backdrop-blur-md">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold">{selectedPrIds.size} selected</span>
+                            <button onClick={clearPrSelection} className="text-[11px] font-bold uppercase tracking-wider text-gray-300 hover:text-primary">
+                                Clear
+                            </button>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 overflow-x-auto">
+                            <button
+                                onClick={handleBulkReadyAndMerge}
+                                disabled={bulkProcessing}
+                                className="whitespace-nowrap rounded-lg bg-primary px-3 py-2 text-xs font-bold text-black disabled:opacity-50"
+                            >
+                                {bulkProcessing ? 'Working...' : 'Ready + Merge'}
+                            </button>
+                            <button
+                                onClick={handleBulkReady}
+                                disabled={bulkProcessing}
+                                className="whitespace-nowrap rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-gray-200 disabled:opacity-50"
+                            >
+                                Ready
+                            </button>
+                            <button
+                                onClick={handleBulkMerge}
+                                disabled={bulkProcessing}
+                                className="whitespace-nowrap rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-gray-200 disabled:opacity-50"
+                            >
+                                Merge
+                            </button>
+                            <button
+                                onClick={handleBulkClose}
+                                disabled={bulkProcessing}
+                                className="whitespace-nowrap rounded-lg border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <Link to={`/quick-issue?repo=${repo?.id}&build=${encodeURIComponent(buildNumber)}`} aria-label="Create new issue" className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-[0_4px_16px_rgba(19,236,37,0.4)] active:scale-90 transition-transform hover:scale-105"><span className="material-symbols-outlined text-3xl">add</span></Link>
             <BottomNav onNotesClick={onNotesClick} />
             {blockIssue && (
@@ -1458,6 +2036,206 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                             <button onClick={handleBlocked} disabled={blockSaving} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
                                 {blockSaving ? 'Blocking...' : 'Mark Blocked'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {conflictPr && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                    <div className="flex h-[85vh] w-full max-w-5xl flex-col rounded-2xl border border-white/10 bg-surface-dark text-white shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                            <div>
+                                <h3 className="text-lg font-bold">Resolve Conflicts</h3>
+                                <p className="text-xs text-gray-400">PR #{conflictPr.number} - {conflictPr.title}</p>
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-400">Conflicts detected</p>
+                            </div>
+                            <button onClick={closeConflictResolver} aria-label="Close conflict resolver" className="rounded-full p-1 hover:bg-white/10">
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="flex flex-1 overflow-hidden">
+                            <div className="w-72 border-r border-white/10 overflow-y-auto">
+                                <div className="border-b border-white/5 px-4 py-3">
+                                    <p className="text-xs font-semibold text-gray-300">Changed files</p>
+                                    <p className="text-[11px] text-gray-500">
+                                        {selectedConflictFileList.length} selected - {resolvedFiles.size} resolved
+                                    </p>
+                                </div>
+                                {conflictFiles.length === 0 && (
+                                    <div className="p-4 text-xs text-gray-400">No changed files found.</div>
+                                )}
+                                {conflictFiles.map(file => {
+                                    const isActive = activeConflictFile?.filename === file.filename;
+                                    const isResolved = resolvedFiles.has(file.filename);
+                                    const isSelected = selectedConflictFiles.has(file.filename);
+                                    const conflictCount = fileConflictCounts[file.filename];
+                                    const hasConflicts = conflictCount === undefined ? true : conflictCount > 0;
+                                    const conflictLabel = conflictCount === undefined
+                                        ? 'Checking...'
+                                        : conflictCount === 0
+                                            ? 'No conflicts'
+                                            : `${conflictCount} conflict${conflictCount === 1 ? '' : 's'}`;
+                                    return (
+                                        <button
+                                            key={file.filename}
+                                            onClick={() => {
+                                                if (!isSelected) {
+                                                    setSelectedConflictFiles(prev => new Set(prev).add(file.filename));
+                                                }
+                                                activateConflictFile(file);
+                                            }}
+                                            className={`w-full px-4 py-3 text-left text-xs border-b border-white/5 transition-colors ${
+                                                isActive ? 'bg-white/10' : 'hover:bg-white/5'
+                                            } ${isSelected ? '' : 'opacity-50'}`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex items-start gap-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleConflictFileSelection(file.filename)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="mt-0.5 size-3 accent-amber-500"
+                                                    />
+                                                    <span className={`line-clamp-2 ${
+                                                        isActive ? 'text-white' : hasConflicts ? 'text-amber-200' : 'text-gray-300'
+                                                    }`}>{file.filename}</span>
+                                                </div>
+                                                {isResolved && (
+                                                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary">Resolved</span>
+                                                )}
+                                            </div>
+                                            <div className="mt-1 flex items-center justify-between text-[10px] uppercase">
+                                                <span className="text-gray-500">{file.status}</span>
+                                                <span className={hasConflicts ? 'text-amber-400' : 'text-gray-500'}>
+                                                    {conflictLabel}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex flex-1 flex-col overflow-hidden">
+                                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                                    <div>
+                                        <div className="text-xs text-gray-400">
+                                            {activeConflictFile ? activeConflictFile.filename : 'Select a file to resolve'}
+                                        </div>
+                                        {activeConflictFile && activeConflictCount > 0 && (
+                                            <div className="text-[11px] font-semibold text-amber-400">
+                                                Conflict {Math.min(conflictCursor + 1, activeConflictCount)} of {activeConflictCount}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => applyConflictResolution('current')}
+                                            disabled={!activeConflictSegment || resolvingFile}
+                                            className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-200 disabled:opacity-40"
+                                        >
+                                            Accept Current
+                                        </button>
+                                        <button
+                                            onClick={() => applyConflictResolution('incoming')}
+                                            disabled={!activeConflictSegment || resolvingFile}
+                                            className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-200 disabled:opacity-40"
+                                        >
+                                            Accept Incoming
+                                        </button>
+                                        <button
+                                            onClick={() => applyConflictResolution('both')}
+                                            disabled={!activeConflictSegment || resolvingFile}
+                                            className="rounded-lg bg-amber-400 px-3 py-1.5 text-[11px] font-bold text-black disabled:opacity-40"
+                                        >
+                                            Accept Both
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                    {conflictError && (
+                                        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                                            {conflictError}
+                                        </div>
+                                    )}
+                                    {conflictLoading && (
+                                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                                            <span className="size-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></span>
+                                            Loading file contents...
+                                        </div>
+                                    )}
+                                    {!conflictLoading && activeConflictFile && conflictFileData && activeConflictSegment && activeConflictSegment.type === 'conflict' && (
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <p className="text-[11px] font-bold uppercase text-gray-400 mb-2">Current change</p>
+                                                <pre className="whitespace-pre-wrap rounded-lg bg-black/40 p-3 text-[11px] text-gray-200">
+                                                    {activeConflictSegment.baseLines.length
+                                                        ? activeConflictSegment.baseLines.join('\n')
+                                                        : '[no lines]'}
+                                                </pre>
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] font-bold uppercase text-gray-400 mb-2">Incoming change</p>
+                                                <pre className="whitespace-pre-wrap rounded-lg bg-black/40 p-3 text-[11px] text-gray-200">
+                                                    {activeConflictSegment.headLines.length
+                                                        ? activeConflictSegment.headLines.join('\n')
+                                                        : '[no lines]'}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {!conflictLoading && activeConflictFile && conflictFileData && conflictSegmentOrder.length === 0 && (
+                                        <div className="text-xs text-gray-400">
+                                            No conflict blocks detected for this file.
+                                        </div>
+                                    )}
+                                    {!conflictLoading && activeConflictFile && conflictFileData && !activeConflictSegment && conflictSegmentOrder.length > 0 && (
+                                        <div className="text-xs text-gray-400">
+                                            All conflict blocks resolved for this file.
+                                        </div>
+                                    )}
+                                    {!conflictLoading && !activeConflictFile && (
+                                        <div className="text-xs text-gray-400">Select a file to view and resolve conflicts.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-white/10 px-5 py-3">
+                            <span className="text-xs text-gray-400">
+                                {unresolvedSelectedFiles.length === 0
+                                    ? 'All selected files resolved'
+                                    : `${unresolvedSelectedFiles.length} files remaining`}
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={mergeResolvedConflictPr}
+                                    disabled={!mergeReady || conflictLoading}
+                                    className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-semibold text-black disabled:opacity-40"
+                                >
+                                    Merge PR
+                                </button>
+                                <button
+                                    onClick={attemptAutoResolve}
+                                    disabled={conflictLoading}
+                                    className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-200 disabled:opacity-40"
+                                >
+                                    Try Auto-Resolve
+                                </button>
+                                <button
+                                    onClick={refreshConflictStatus}
+                                    disabled={conflictLoading}
+                                    className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-200 disabled:opacity-40"
+                                >
+                                    Recheck Mergeable
+                                </button>
+                                <a
+                                    href={`https://github.com/${repo.owner}/${repo.name}/pull/${conflictPr.number}/conflicts`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-gray-100 hover:bg-white/20"
+                                >
+                                    Open in GitHub
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1653,10 +2431,37 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
     const [desc, setDesc] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [buildNumber, setBuildNumber] = useState(buildParam || repo?.apps[0]?.buildNumber || '');
+    const autoFixAvailable = typeof window !== 'undefined' && Boolean((window as any).QAVT_AUTO_FIX?.issueCreated);
+    const autoFixToggleAvailable = typeof window !== 'undefined' && typeof (window as any).QAVT_AUTO_FIX?.setEnabled === 'function';
+    const [autoFixEnabled, setAutoFixEnabled] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return Boolean((window as any).QAVT_AUTO_FIX?.enabled);
+    });
 
     useEffect(() => {
         setBuildNumber(buildParam || repo?.apps[0]?.buildNumber || '');
     }, [buildParam, repo?.id, repo?.apps]);
+
+    useEffect(() => {
+        if (!autoFixAvailable || typeof window === 'undefined') return;
+        const handler = (event: Event) => {
+            const detail = (event as CustomEvent).detail as { enabled?: boolean } | undefined;
+            setAutoFixEnabled(Boolean(detail?.enabled));
+        };
+        window.addEventListener('qavt-auto-fix-changed', handler);
+        setAutoFixEnabled(Boolean((window as any).QAVT_AUTO_FIX?.enabled));
+        return () => window.removeEventListener('qavt-auto-fix-changed', handler);
+    }, [autoFixAvailable]);
+
+    const handleAutoFixToggle = (nextEnabled: boolean) => {
+        setAutoFixEnabled(nextEnabled);
+        if (!autoFixToggleAvailable) return;
+        try {
+            (window as any).QAVT_AUTO_FIX.setEnabled(nextEnabled);
+        } catch (notifyError) {
+            console.warn('Failed to update auto-fix state', notifyError);
+        }
+    };
 
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -1677,6 +2482,22 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                     alert("Issue created, but failed to add the build comment.");
                 }
             }
+            if (autoFixAvailable && autoFixEnabled) {
+                try {
+                    const payload = new URLSearchParams({
+                        repoId: repo.id,
+                        repoOwner: repo.owner,
+                        repoName: repo.name,
+                        issueNumber: created.number.toString(),
+                        title: created.title || title,
+                        description: desc || '',
+                        buildNumber: tag
+                    }).toString();
+                    (window as any).QAVT_AUTO_FIX.issueCreated(payload);
+                } catch (notifyError) {
+                    console.warn('Failed to notify auto-fix bridge', notifyError);
+                }
+            }
             setTitle('');
             setDesc('');
             alert("Issue created successfully!");
@@ -1691,8 +2512,39 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
         <div className="bg-transparent h-screen w-full relative">
             <div onClick={() => navigate(-1)} className="absolute inset-0 bg-black/60 backdrop-blur-sm z-10"></div>
             <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col h-[90vh] bg-surface-dark rounded-t-[32px] shadow-2xl border-t border-white/10 animate-slide-up">
-                 <div className="w-full flex justify-center pt-4 pb-2"><div className="w-14 h-1.5 bg-gray-600/40 rounded-full"></div></div>
-                 <div className="px-6 py-2 flex justify-between"><h2 className="text-white text-2xl font-bold">New Issue</h2><button onClick={() => navigate(-1)} aria-label="Close" className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white"><span className="material-symbols-outlined">close</span></button></div>
+                 <div className="sticky top-0 z-30 bg-surface-dark border-b border-white/10">
+                      <div className="w-full flex justify-center pt-4 pb-2"><div className="w-14 h-1.5 bg-gray-600/40 rounded-full"></div></div>
+                      <div className="px-6 py-2 flex justify-between items-center">
+                          <div>
+                              <h2 className="text-white text-2xl font-bold">New Issue</h2>
+                              {autoFixAvailable && (
+                                  <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-400">
+                                      <span>Auto-fix on submit</span>
+                                      <button
+                                          type="button"
+                                          role="switch"
+                                          aria-checked={autoFixEnabled}
+                                          onClick={() => handleAutoFixToggle(!autoFixEnabled)}
+                                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                                              autoFixEnabled ? 'bg-primary/90' : 'bg-white/15'
+                                          }`}
+                                      >
+                                          <span
+                                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                                                  autoFixEnabled ? 'translate-x-4' : 'translate-x-1'
+                                              }`}
+                                          />
+                                      </button>
+                                      <span>{autoFixEnabled ? 'On' : 'Off'}</span>
+                                  </div>
+                              )}
+                          </div>
+                          <button onClick={() => navigate(-1)} aria-label="Close" className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white">
+                              <span className="material-symbols-outlined">close</span>
+                          </button>
+                      </div>
+                 </div>
+                 <div className="flex-1 overflow-y-auto scroll-smooth">
                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
                       <div className="space-y-1">
                           <label className="text-xs uppercase font-bold text-gray-500">Found in Build</label>
@@ -1713,6 +2565,7 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                       </div>
                       <button type="submit" disabled={!title || isSubmitting} className="w-full bg-primary h-14 rounded-xl font-bold text-black disabled:opacity-50">{isSubmitting ? 'Submitting...' : 'Submit'}</button>
                  </form>
+                 </div>
             </div>
         </div>
     );
@@ -1720,6 +2573,13 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
 
 // ... ConflictPage remains as a UI stub ...
 const ConflictPage = () => { const navigate = useNavigate(); return <div className="h-screen bg-background-dark text-white p-6"><button onClick={()=>navigate(-1)} className="mb-4 text-primary">Back</button><h1>Conflicts</h1><p>Manual resolution required.</p></div> };
+
+const RequireAuth = ({ user, children }: { user: User | null; children: React.ReactElement }) => {
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -1759,19 +2619,59 @@ const App = () => {
 
   if (loading) return <div className="min-h-screen bg-background-dark flex items-center justify-center"><div className="size-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
 
-  if (!user) {
-      return <LoginPage />;
-  }
-
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<HomePage repos={repos} user={user} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />} />
-        <Route path="/dashboard" element={<Dashboard repos={repos} user={user} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />} />
-        <Route path="/issue/:repoId/:issueNumber" element={<IssueDetailPage repos={repos} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />} />
-        <Route path="/config" element={<ConfigurationPage repos={repos} setRepos={setRepos} user={user} globalSettings={globalSettings} setGlobalSettings={setGlobalSettings} />} />
-        <Route path="/quick-issue" element={<QuickIssuePage repos={repos} globalSettings={globalSettings} />} />
-        <Route path="/conflicts" element={<ConflictPage />} />
+        <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <RequireAuth user={user}>
+              <HomePage repos={repos} user={user!} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth user={user}>
+              <Dashboard repos={repos} user={user!} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/issue/:repoId/:issueNumber"
+          element={
+            <RequireAuth user={user}>
+              <IssueDetailPage repos={repos} globalSettings={globalSettings} onNotesClick={() => setNotesOpen(true)} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/config"
+          element={
+            <RequireAuth user={user}>
+              <ConfigurationPage repos={repos} setRepos={setRepos} user={user!} globalSettings={globalSettings} setGlobalSettings={setGlobalSettings} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/quick-issue"
+          element={
+            <RequireAuth user={user}>
+              <QuickIssuePage repos={repos} globalSettings={globalSettings} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/conflicts"
+          element={
+            <RequireAuth user={user}>
+              <ConflictPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
       </Routes>
       {user && <Notes isOpen={notesOpen} onClose={() => setNotesOpen(false)} userId={user.uid} />}
     </HashRouter>
@@ -1779,6 +2679,4 @@ const App = () => {
 };
 
 export default App;
-
-
 
