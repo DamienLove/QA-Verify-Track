@@ -853,7 +853,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
 
         try {
             const [fetchedIssues, fetchedPrs] = await Promise.all([
-                githubService.getIssues(repo.owner, repo.name),
+                githubService.getIssues(repo.owner, repo.name, 'open', true),
                 githubService.getPullRequests(repo.owner, repo.name)
             ]);
 
@@ -861,17 +861,16 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             const verifyFixRegex = /\bverify\s*fix\b[^\d]*v?\s*(\d+)\b/gi;
             const statusBuildMap: Record<number, number> = {};
             const verifyFixBuildMap: Record<number, number> = {};
-            await Promise.all(
-              fetchedIssues.map(async (issue) => {
-                if (issue.commentsCount <= 0) {
+
+            fetchedIssues.forEach((issue) => {
+                if (issue.commentsCount <= 0 || !issue.comments) {
                     return;
                 }
                 try {
-                  const comments = await githubService.getIssueComments(repo.owner, repo.name, issue.number, issue.updatedAt);
                   let maxStatusBuild = -1;
                   let maxVerifyBuild = -1;
-                  for (const c of comments) {
-                    const body = c.body || '';
+                  for (const c of issue.comments) {
+                    const body = c.text || '';
                     let m;
                     statusRegex.lastIndex = 0;
                     while ((m = statusRegex.exec(body)) !== null) {
@@ -896,10 +895,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                     verifyFixBuildMap[issue.id] = maxVerifyBuild;
                   }
                 } catch (err) {
-                  console.error('Failed to load comments for issue', issue.number, err);
+                  console.error('Failed to parse comments for issue', issue.number, err);
                 }
-              })
-            );
+            });
 
             setAllIssues(fetchedIssues);
             setIssueBuildMap(statusBuildMap);
@@ -1505,14 +1503,9 @@ const IssueDetailPage = ({ repos, globalSettings, onNotesClick }: { repos: Repos
             try {
                 githubService.initialize(token);
                 const issueData = await githubService.getIssue(repo.owner, repo.name, number);
-                const rawComments = await githubService.getIssueComments(repo.owner, repo.name, number);
-                const mappedComments = (rawComments || []).map((c: any) => ({
-                    id: String(c.id),
-                    text: c.body || ''
-                }));
                 if (isMounted) {
-                    setIssue({ ...issueData, comments: mappedComments });
-                    setComments(mappedComments);
+                    setIssue(issueData);
+                    setComments(issueData.comments);
                 }
             } catch (e) {
                 console.error('Failed to load issue', e);
@@ -1539,13 +1532,9 @@ const IssueDetailPage = ({ repos, globalSettings, onNotesClick }: { repos: Repos
         try {
             githubService.initialize(token);
             await githubService.addComment(repo.owner, repo.name, issue.number, text);
-            const rawComments = await githubService.getIssueComments(repo.owner, repo.name, issue.number);
-            const mappedComments = (rawComments || []).map((c: any) => ({
-                id: String(c.id),
-                text: c.body || ''
-            }));
-            setComments(mappedComments);
-            setIssue(prev => prev ? { ...prev, comments: mappedComments, commentsCount: mappedComments.length } : prev);
+            const comments = await githubService.getIssueComments(repo.owner, repo.name, issue.number);
+            setComments(comments);
+            setIssue(prev => prev ? { ...prev, comments: comments, commentsCount: comments.length } : prev);
             setCommentDraft('');
         } catch (e) {
             console.error('Failed to add comment', e);
