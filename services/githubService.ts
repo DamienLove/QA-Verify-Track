@@ -5,6 +5,8 @@ let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: any[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
+const issuesCache = new Map<string, { timestamp: number; data: Issue[] }>();
+const prsCache = new Map<string, { timestamp: number; data: PullRequest[] }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
 const getOctokit = async (token?: string): Promise<Octokit> => {
@@ -34,6 +36,8 @@ export const githubService = {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
     statsCache.clear(); // Clear stats cache when switching tokens/users
+    issuesCache.clear();
+    prsCache.clear();
   },
 
   getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
@@ -78,7 +82,15 @@ export const githubService = {
     return data;
   },
 
-  getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open'): Promise<Issue[]> => {
+  getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open', forceRefresh: boolean = false): Promise<Issue[]> => {
+    const cacheKey = `${owner}/${repo}/${state}`;
+    if (!forceRefresh) {
+      const cached = issuesCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+        return cached.data;
+      }
+    }
+
     const api = await getOctokit();
 
     try {
@@ -92,7 +104,7 @@ export const githubService = {
       });
 
       // Filter out PRs as they are returned in issues endpoint too
-      return response
+      const issues = response
         .filter((i: any) => !i.pull_request)
         .map((i: any) => ({
           id: i.id,
@@ -112,13 +124,24 @@ export const githubService = {
           },
           comments: [] // Would need separate fetch, keeping empty for list view performance
         }));
+
+      issuesCache.set(cacheKey, { timestamp: Date.now(), data: issues });
+      return issues;
     } catch (e) {
       console.error("Failed to fetch issues", e);
       return [];
     }
   },
 
-  getPullRequests: async (owner: string, repo: string, token?: string): Promise<PullRequest[]> => {
+  getPullRequests: async (owner: string, repo: string, token?: string, forceRefresh: boolean = false): Promise<PullRequest[]> => {
+    const cacheKey = `${owner}/${repo}`;
+    if (!forceRefresh) {
+      const cached = prsCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+        return cached.data;
+      }
+    }
+
     const api = await getOctokit(token);
 
     try {
@@ -131,7 +154,7 @@ export const githubService = {
         per_page: 100
       });
 
-      return response.map((pr: any) => ({
+      const prs: PullRequest[] = response.map((pr: any) => ({
         id: pr.id,
         number: pr.number,
         title: pr.title,
@@ -143,9 +166,12 @@ export const githubService = {
         },
         hasConflicts: false, // Default, client updates this via detailed check if needed
         isDraft: pr.draft,
-        status: pr.draft ? 'draft' : 'open',
+        status: (pr.draft ? 'draft' : 'open') as PullRequest['status'],
         filesChanged: 0
       }));
+
+      prsCache.set(cacheKey, { timestamp: Date.now(), data: prs });
+      return prs;
     } catch (e) {
       console.error("Failed to fetch PRs", e);
       return [];
@@ -164,10 +190,10 @@ export const githubService = {
       number: data.number,
       title: data.title,
       description: data.body || '',
-      state: data.state,
+      state: data.state as 'open' | 'closed',
       priority: mapPriority(data.labels),
       labels: (data.labels || []).map((l: any) => l.name),
-      type: (data.labels || []).find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui')?.name || 'bug',
+      type: ((data.labels || []) as any[]).find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui')?.name || 'bug',
       createdAt: data.created_at,
       updatedAt: data.updated_at,
       commentsCount: data.comments,
@@ -200,6 +226,8 @@ export const githubService = {
       body: issue.description,
       labels: issue.labels
     });
+
+    issuesCache.delete(`${owner}/${repoName}/open`); // Invalidate cache
     
     return response.data;
   },
@@ -223,6 +251,8 @@ export const githubService = {
       issue_number: issueNumber,
       state
     });
+    issuesCache.delete(`${owner}/${repo}/open`);
+    issuesCache.delete(`${owner}/${repo}/closed`);
     return true;
   },
   
@@ -233,6 +263,7 @@ export const githubService = {
         repo,
         pull_number: pullNumber
     });
+    prsCache.delete(`${owner}/${repo}`);
     return true;
   },
 
@@ -244,11 +275,14 @@ export const githubService = {
           pull_number: pullNumber,
           state: 'closed'
       });
+      prsCache.delete(`${owner}/${repo}`);
       return true;
   },
 
   updatePR: async (owner: string, repo: string, pullNumber: number, updates: any) => {
       const api = await getOctokit();
+
+      prsCache.delete(`${owner}/${repo}`);
 
       const { isDraft, ...restUpdates } = updates;
 
