@@ -357,6 +357,28 @@ const ConfigurationPage = ({
             return;
         }
 
+        // Validate Owner (GitHub username format: alphanumeric, single hyphens, no start/end hyphen)
+        const ownerRegex = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
+        if (!ownerRegex.test(formData.owner)) {
+            setSaveError('Invalid owner name. Use only alphanumeric characters and single hyphens.');
+            return;
+        }
+
+        // Validate Repo Name (alphanumeric, periods, underscores, hyphens)
+        const repoRegex = /^[\w.-]+$/;
+        if (!repoRegex.test(formData.name)) {
+            setSaveError('Invalid repository name. Use only alphanumeric characters, underscores, hyphens, and periods.');
+            return;
+        }
+
+        // Validate Token (no whitespace)
+        if (formData.useCustomToken !== false && formData.githubToken) {
+            if (/\s/.test(formData.githubToken)) {
+                setSaveError('Token must not contain whitespace.');
+                return;
+            }
+        }
+
         setSaveError('');
         setSaving(true);
 
