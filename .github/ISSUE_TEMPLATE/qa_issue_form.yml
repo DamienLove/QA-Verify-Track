@@ -1,6 +1,8 @@
 name: "QA / Bug Report"
 description: "Template to report QA issues or bugs. Provide a summary, steps to reproduce, expected vs actual behavior, and any attachments or logs."
-title: "QA VERIFY AND TRACK - BUG"
+title: "Issue Summary"
+    validations:
+      required: true
 labels:
   - "triage"
   - "qa"
@@ -32,144 +34,52 @@ body:
     validations:
       required: false
 
-  - type: input
-    id: summary
-    attributes:
-      label: "Issue Summary"
-      description: "Short one-line summary of the issue."
-      placeholder: "Brief summary"
-    validations:
-      required: true
-      min_length: 5
+- type: textarea
+id: description
+attributes:
+label: "Issue Description"
+description: "Provide a detailed description of the issue. Include context, what you expected to happen, and any other relevant notes."
+placeholder: |
+"Detailed description of the issue"
+validations:
+required: false
 
-  - type: checkboxes
-    id: sections_to_include
-    attributes:
-      label: "Select Applicable Sections"
-      description: "Check the sections that apply to this bug report. Only fill out the sections you select."
-      options:
-        - label: "Issue Description"
-        - label: "Steps to Reproduce"
-        - label: "Expected vs Actual Results"
-        - label: "Photos/Screenshots"
-        - label: "Photo Descriptions"
-        - label: "Location Information"
-        - label: "Crash Logs/Files"
-        - label: "File Descriptions"
-        - label: "OS/Environment Details"
-        - label: "Additional Notes"
-    validations:
-      required: false
+- type: textarea
+id: steps_to_reproduce
+attributes:
+label: "Steps to Reproduce"
+description: "Use the numbered template below. Add additional steps by continuing the numbering."
+placeholder: |
+" 1.
+2.
+3.
+(Add more numbered lines as needed)"
+validations:
+required: false
 
-  - type: textarea
-    id: description
-    attributes:
-      label: "Issue Description (Optional)"
-      description: "Only fill this out if you selected 'Issue Description' above. Provide detailed context about the issue."
-      placeholder: "Detailed description of the issue"
-    validations:
-      required: false
+- type: input
+id: location_of_issue
+attributes:
+label: "Location of issue (page / section)"
+description: "Where in the app or webapp did this occur? Page, section, or workflow."
+placeholder: "e.g., Settings > Profile > Change Password"
+validations:
+required: false
 
-  - type: textarea
-    id: steps_to_reproduce
-    attributes:
-      label: "Steps to Reproduce (Optional)"
-      description: "Only fill this out if you selected 'Steps to Reproduce' above. Use the numbered template below and continue the numbering as needed."
-      placeholder: |
-        1.
-        2.
-        3.
-        (Add more numbered lines as needed)
-    validations:
-      required: false
+- type: textarea
+id: other_files
+attributes:
+label: "Crash log or other file (paste logs or provide links)"
+description: "Paste important log excerpts here, or provide links to full logs (Gist, cloud storage, etc.). For very large logs, link to a Gist or upload and share a link."
+validations:
+required: false
 
-  - type: textarea
-    id: expected_results
-    attributes:
-      label: "Expected Results (Optional)"
-      description: "Only fill this out if you selected 'Expected vs Actual Results' above. Describe what you expected to happen."
-      placeholder: "Expected results: "
-    validations:
-      required: false
+- type: input
+id: os_environment
+attributes:
+label: "OS / Environment"
+description: "Operating system, OS version, device, browser and version (if applicable)."
+placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
+validations:
+required: false
 
-  - type: textarea
-    id: actual_results
-    attributes:
-      label: "Actual Results (Optional)"
-      description: "Only fill this out if you selected 'Expected vs Actual Results' above. Describe what actually happened."
-      placeholder: "Actual results: "
-    validations:
-      required: false
-
-  - type: textarea
-    id: photos
-    attributes:
-      label: "Photos / Screenshot Links (Optional)"
-      description: "Only fill this out if you selected 'Photos/Screenshots' above. After submitting, attach images in the GitHub issue editor (drag & drop) or paste image links here."
-      placeholder: |
-        Photo link or note: https://...
-        Photo 1 filename or brief note
-    validations:
-      required: false
-
-  - type: textarea
-    id: photo_description
-    attributes:
-      label: "Photo Description (Optional)"
-      description: "Only fill this out if you selected 'Photo Descriptions' above. Describe each attached photo."
-      placeholder: "Photo 1: ...\nPhoto 2: ..."
-    validations:
-      required: false
-
-  - type: input
-    id: location_of_issue
-    attributes:
-      label: "Location of Issue (Optional)"
-      description: "Only fill this out if you selected 'Location Information' above. Where in the app or webapp did this occur? Page, section, or workflow."
-      placeholder: "e.g., Settings > Profile > Change Password"
-    validations:
-      required: false
-
-  - type: textarea
-    id: location_details
-    attributes:
-      label: "Location Details (Optional)"
-      description: "Only fill this out if you selected 'Location Information' above. Additional details about the location (navigation steps, user role, etc.)."
-      placeholder: "Home Page / Repo Page / Issues Page"
-    validations:
-      required: false
-
-  - type: textarea
-    id: other_files
-    attributes:
-      label: "Crash Log or Other File (Optional)"
-      description: "Only fill this out if you selected 'Crash Logs/Files' above. Paste key log excerpts or provide links to full logs (Gist, cloud storage, etc.)."
-    validations:
-      required: false
-
-  - type: textarea
-    id: other_files_description
-    attributes:
-      label: "File Description (Optional)"
-      description: "Only fill this out if you selected 'File Descriptions' above. Describe the attached file(s) or links you provided."
-      placeholder: "e.g., crash_log_2026-01-14.txt contains full stack trace for crash"
-    validations:
-      required: false
-
-  - type: input
-    id: os_environment
-    attributes:
-      label: "OS / Environment (Optional)"
-      description: "Only fill this out if you selected 'OS/Environment Details' above. List OS, version, device, browser and version (if applicable)."
-      placeholder: "e.g., Android 13 - Pixel 6; iOS 16.2 - iPhone 12; Windows 11, Chrome 114"
-    validations:
-      required: false
-
-  - type: textarea
-    id: additional_notes
-    attributes:
-      label: "Additional Notes (Optional)"
-      description: "Only fill this out if you selected 'Additional Notes' above. Any other details the QA or dev team should know."
-      placeholder: "Optional additional context"
-    validations:
-      required: false
