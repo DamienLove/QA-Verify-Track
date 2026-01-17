@@ -9,3 +9,7 @@
 ## 2024-05-23 - Modal Accessibility Standards
 **Learning:** Modals require explicit focus management (autoFocus on primary input), keyboard support (Escape to close), and proper ARIA roles (`role="dialog"`, `aria-modal="true"`) to be fully accessible. Character counters should be linked via `aria-describedby`.
 **Action:** When implementing modals, always add `autoFocus`, `aria-labelledby`, `aria-describedby` (if applicable), and `useEffect` listener for Escape key.
+
+## 2024-05-24 - Toggle Switch Accessibility
+**Learning:** Visual toggle switches implemented as buttons need `role="switch"` and `aria-checked` to be correctly interpreted by screen readers. Without these attributes, they are announced merely as "buttons" without state information.
+**Action:** For all toggle-style buttons, explicitly add `role="switch"`, `aria-checked={state}`, and ensure they are labelled via `aria-label` or `aria-labelledby` (or `label` with `htmlFor`).
