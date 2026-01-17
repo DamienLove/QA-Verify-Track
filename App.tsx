@@ -7,6 +7,7 @@ import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
+import { IssueCard } from './components/IssueCard';
 
 const normalizeRepos = (repos: Repository[]): Repository[] =>
   repos.map((repo) => ({
@@ -823,6 +824,12 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
   const [blockSaving, setBlockSaving] = useState(false);
   const [blockError, setBlockError] = useState('');
 
+  // Use a ref to track analysis state for stable callbacks
+  const analyzingIdsRef = React.useRef(new Set<number>());
+  useEffect(() => {
+      analyzingIdsRef.current = analyzingIds;
+  }, [analyzingIds]);
+
     // Initial Fetch
     useEffect(() => {
         if (repo && activeToken) {
@@ -926,19 +933,19 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }));
     }, [buildNumber, allIssues, issueBuildMap, issueVerifyFixMap]);
 
-    const startIssueAction = (issueId: number) => {
+    const startIssueAction = React.useCallback((issueId: number) => {
         setIssueActionIds(prev => new Set(prev).add(issueId));
-    };
+    }, []);
 
-    const endIssueAction = (issueId: number) => {
+    const endIssueAction = React.useCallback((issueId: number) => {
         setIssueActionIds(prev => {
             const next = new Set(prev);
             next.delete(issueId);
             return next;
         });
-    };
+    }, []);
 
-    const handleFixed = async (id: number, number: number) => {
+    const handleFixed = React.useCallback(async (id: number, number: number) => {
         setIssueActionError('');
         startIssueAction(id);
         const buildTag = (buildNumber || '').trim();
@@ -972,9 +979,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             }
             endIssueAction(id);
         }
-    };
+    }, [buildNumber, repo.owner, repo.name, startIssueAction, endIssueAction]);
 
-    const handleOpen = async (id: number, number: number) => {
+    const handleOpen = React.useCallback(async (id: number, number: number) => {
         setIssueActionError('');
         startIssueAction(id);
         const buildTag = (buildNumber || '').trim();
@@ -1009,13 +1016,13 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             }
             endIssueAction(id);
         }
-    };
+    }, [buildNumber, repo.owner, repo.name, startIssueAction, endIssueAction]);
 
-    const openBlockPrompt = (issue: Issue) => {
+    const openBlockPrompt = React.useCallback((issue: Issue) => {
         setBlockIssue(issue);
         setBlockReason('');
         setBlockError('');
-    };
+    }, []);
 
     const handleBlocked = async () => {
         if (!blockIssue) return;
@@ -1050,8 +1057,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     };
 
     // --- AI Analysis Handler ---
-    const handleAnalyze = async (issue: Issue) => {
-        if (analyzingIds.has(issue.id)) return;
+    const handleAnalyze = React.useCallback(async (issue: Issue) => {
+        // Use ref to avoid stale closure or dependency loop on analyzingIds
+        if (analyzingIdsRef.current.has(issue.id)) return;
         
         setAnalyzingIds(prev => new Set(prev).add(issue.id));
         try {
@@ -1064,7 +1072,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 return next;
             });
         }
-    };
+    }, [repo]); // Include repo in dependencies to ensure context validity if logic expands, though currently unused.
 
     const handleMergeSequence = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
@@ -1233,58 +1241,20 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         {issues.length === 0 ? (
                             <div className="text-center py-10 opacity-50"><span className="material-symbols-outlined text-6xl text-gray-600">check_circle</span><p className="mt-4 text-gray-400">All cleared for build {buildNumber}!</p></div>
                         ) : (
-                            issues.map(issue => {
-                                const isIssueBusy = issueActionIds.has(issue.id);
-                                return (
-                                <article key={issue.id} className="relative flex flex-col gap-1.5 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-2 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
-                                    <div className="flex items-start justify-between gap-2.5">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`font-bold text-xs tracking-tight flex items-center gap-1 uppercase ${issue.priority === 'critical' ? 'text-red-500' : issue.priority === 'high' ? 'text-orange-500' : 'text-blue-400'}`}>
-                                                    <span className="material-symbols-outlined text-[14px] fill-1">{issue.priority === 'critical' ? 'error' : 'flag'}</span>{issue.priority}
-                                                </span>
-                                                <span className="text-gray-500 dark:text-gray-500 text-[11px] font-medium">#{issue.number}</span>
-                                            </div>
-                                            <Link to={`/issue/${repo.id}/${issue.number}`} className="text-base font-semibold text-slate-900 dark:text-white leading-snug hover:text-primary">
-                                                {issue.title}
-                                            </Link>
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-1.5">
-                                        <p className="text-xs text-gray-600 dark:text-gray-200 line-clamp-3 font-mono leading-snug">{issue.description}</p>
-                                    </div>
-
-                                    {/* AI Analysis Result Display */}
-                                    {analysisResults[issue.id] && (
-                                        <div className="bg-primary/10 border border-primary/25 rounded-lg p-2 animate-fade-in">
-                                            <div className="flex items-center gap-1 mb-1 text-primary">
-                                                <span className="material-symbols-outlined text-[15px]">smart_toy</span>
-                                                <span className="text-[11px] font-bold uppercase">Gemini Analysis</span>
-                                            </div>
-                                            <p className="text-[11px] text-slate-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{analysisResults[issue.id]}</p>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-4 gap-1.5 mt-0.5">
-                                        <button disabled={isIssueBusy} onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
-                                        <button disabled={isIssueBusy} onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>   
-                                        <button disabled={isIssueBusy} onClick={() => openBlockPrompt(issue)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</button>
-                                        <button 
-                                            onClick={() => handleAnalyze(issue)} 
-                                            disabled={analyzingIds.has(issue.id)}
-                                            className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-blue-600/10 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-600/20 dark:border-blue-500/25 font-semibold text-[11px] active:scale-95 transition-transform disabled:opacity-50"
-                                        >
-                                            {analyzingIds.has(issue.id) ? (
-                                                <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                                            ) : (
-                                                <span className="material-symbols-outlined text-[18px]">analytics</span>
-                                            )}
-                                            Analyze
-                                        </button>
-                                    </div>
-                                </article>
-                                );
-                            })
+                            issues.map(issue => (
+                                <IssueCard
+                                    key={issue.id}
+                                    issue={issue}
+                                    repoId={repo.id}
+                                    isBusy={issueActionIds.has(issue.id)}
+                                    isAnalyzing={analyzingIds.has(issue.id)}
+                                    analysisResult={analysisResults[issue.id]}
+                                    onFixed={handleFixed}
+                                    onOpen={handleOpen}
+                                    onBlock={openBlockPrompt}
+                                    onAnalyze={handleAnalyze}
+                                />
+                            ))
                         )}
                     </>
                 )}
