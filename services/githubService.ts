@@ -1,9 +1,9 @@
 import type { Octokit } from "@octokit/rest";
-import { Issue, PullRequest } from '../types';
+import { Issue, PullRequest, Comment } from '../types';
 
 let octokit: Octokit | null = null;
 let currentToken: string | null = null;
-const commentsCache = new Map<string, { timestamp: string; data: any[] }>();
+const commentsCache = new Map<string, { timestamp: string; data: Comment[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
@@ -51,6 +51,43 @@ const mapPriority = (labels: any[]): Issue['priority'] => {
   return 'medium';
 };
 
+const getIssueComments = async (owner: string, repo: string, issueNumber: number, lastUpdated?: string): Promise<Comment[]> => {
+  const api = await getOctokit();
+
+  const cacheKey = `${owner}/${repo}/${issueNumber}`;
+
+  // Check cache if lastUpdated is provided
+  if (lastUpdated) {
+    const cached = commentsCache.get(cacheKey);
+    if (cached && cached.timestamp === lastUpdated) {
+      return cached.data;
+    }
+  }
+
+  const response = await api.paginate(api.issues.listComments, {
+    owner,
+    repo,
+    issue_number: issueNumber,
+    per_page: 100
+  });
+
+  const data: Comment[] = response.map((c: any) => ({
+    id: String(c.id),
+    text: c.body || '',
+    buildNumber: undefined
+  }));
+
+  // Update cache
+  if (lastUpdated) {
+    if (commentsCache.size > 500) {
+      commentsCache.clear(); // Simple eviction strategy to prevent memory leaks
+    }
+    commentsCache.set(cacheKey, { timestamp: lastUpdated, data });
+  }
+
+  return data;
+};
+
 export const githubService = {
   initialize: (token: string) => {
     currentToken = token;
@@ -69,38 +106,9 @@ export const githubService = {
     }
   },
 
-  getIssueComments: async (owner: string, repo: string, issueNumber: number, lastUpdated?: string) => {
-    const api = await getOctokit();
+  getIssueComments,
 
-    const cacheKey = `${owner}/${repo}/${issueNumber}`;
-
-    // Check cache if lastUpdated is provided
-    if (lastUpdated) {
-      const cached = commentsCache.get(cacheKey);
-      if (cached && cached.timestamp === lastUpdated) {
-        return cached.data;
-      }
-    }
-
-    const data = await api.paginate(api.issues.listComments, {
-      owner,
-      repo,
-      issue_number: issueNumber,
-      per_page: 100
-    });
-
-    // Update cache
-    if (lastUpdated) {
-      if (commentsCache.size > 500) {
-        commentsCache.clear(); // Simple eviction strategy to prevent memory leaks
-      }
-      commentsCache.set(cacheKey, { timestamp: lastUpdated, data });
-    }
-
-    return data;
-  },
-
-  getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open'): Promise<Issue[]> => {
+  getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open', includeComments = false): Promise<Issue[]> => {
     const api = await getOctokit();
 
     try {
@@ -114,7 +122,7 @@ export const githubService = {
       });
 
       // Filter out PRs as they are returned in issues endpoint too
-      return response
+      const issues: Issue[] = response
         .filter((i: any) => !i.pull_request)
         .map((i: any) => ({
           id: i.id,
@@ -132,8 +140,18 @@ export const githubService = {
             name: i.user.login,
             avatar: i.user.avatar_url
           },
-          comments: [] // Would need separate fetch, keeping empty for list view performance
+          comments: []
         }));
+
+      if (includeComments) {
+        await Promise.all(issues.map(async (issue) => {
+          if (issue.commentsCount > 0) {
+            issue.comments = await getIssueComments(owner, repo, issue.number, issue.updatedAt);
+          }
+        }));
+      }
+
+      return issues;
     } catch (e) {
       console.error("Failed to fetch issues", e);
       return [];
@@ -181,15 +199,16 @@ export const githubService = {
       repo,
       issue_number: issueNumber
     });
-    return {
+
+    const issue: Issue = {
       id: data.id,
       number: data.number,
       title: data.title,
       description: data.body || '',
-      state: data.state,
+      state: data.state as 'open' | 'closed',
       priority: mapPriority(data.labels),
       labels: (data.labels || []).map((l: any) => l.name),
-      type: (data.labels || []).find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui')?.name || 'bug',
+      type: ((data.labels || []).find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui') as any)?.name || 'bug',
       createdAt: data.created_at,
       updatedAt: data.updated_at,
       commentsCount: data.comments,
@@ -199,6 +218,12 @@ export const githubService = {
       },
       comments: []
     };
+
+    if (data.comments > 0) {
+      issue.comments = await getIssueComments(owner, repo, issue.number, data.updated_at);
+    }
+
+    return issue;
   },
 
   // Get full details for a single PR, including mergeable state
