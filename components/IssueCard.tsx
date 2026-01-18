@@ -12,6 +12,8 @@ interface IssueCardProps {
     onOpen: (id: number, number: number) => void;
     onBlock: (issue: Issue) => void;
     onAnalyze: (issue: Issue) => void;
+    onAutoFix?: (issue: Issue) => void;
+    autoFixAvailable?: boolean;
 }
 
 export const IssueCard = memo(({
@@ -23,7 +25,9 @@ export const IssueCard = memo(({
     onFixed,
     onOpen,
     onBlock,
-    onAnalyze
+    onAnalyze,
+    onAutoFix,
+    autoFixAvailable
 }: IssueCardProps) => {
     return (
         <article className="relative flex flex-col gap-1.5 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-2 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
@@ -72,6 +76,18 @@ export const IssueCard = memo(({
                     Analyze
                 </button>
             </div>
+            {autoFixAvailable && onAutoFix && (
+                <div className="mt-2">
+                    <button
+                        onClick={() => onAutoFix(issue)}
+                        disabled={isBusy}
+                        className="w-full flex items-center justify-center gap-2 h-9 rounded-lg bg-purple-600 text-white font-semibold text-xs shadow-[0_2px_8px_rgba(147,51,234,0.3)] active:scale-95 transition-transform disabled:opacity-50 hover:bg-purple-700"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">auto_fix_high</span>
+                        Auto Fix &amp; Publish
+                    </button>
+                </div>
+            )}
         </article>
     );
 });
