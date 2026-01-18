@@ -1,13 +1,21 @@
 package com.damienlove.qaverifytrack.toolWindow
 
 import com.intellij.ide.BrowserUtil
+import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.credentialStore.CredentialAttributes
+import com.intellij.credentialStore.Credentials
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogBuilder
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.components.JBTextField
 import com.intellij.ui.components.labels.LinkLabel
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.jcef.JBCefApp
@@ -19,16 +27,22 @@ import org.cef.handler.CefLoadHandlerAdapter
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.GridBagConstraints
+import java.awt.GridBagLayout
+import java.awt.Insets
 import java.io.File
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import javax.swing.BoxLayout
 import javax.swing.JButton
+import javax.swing.JComboBox
+import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JScrollPane
 import javax.swing.JToggleButton
 import javax.swing.JToolBar
+import javax.swing.ScrollPaneConstants
 
 class QAVTToolWindowFactory : ToolWindowFactory {
     private var projectRef: Project? = null
@@ -40,6 +54,8 @@ class QAVTToolWindowFactory : ToolWindowFactory {
     private var autoFixEnabled: Boolean = false
     private var autoFixCommand: String? = null
     private var autoFixWorkingDir: String? = null
+    private var autoFixProvider: String = DEFAULT_AUTO_FIX_PROVIDER
+    private var autoFixAiCommand: String? = null
     private var autoFixToggle: JToggleButton? = null
     private var autoFixQuery: JBCefJSQuery? = null
     private var browserRef: JBCefBrowser? = null
@@ -48,14 +64,18 @@ class QAVTToolWindowFactory : ToolWindowFactory {
         projectRef = project
         val props = PropertiesComponent.getInstance(project)
         autoFixEnabled = props.getBoolean(AUTO_FIX_ENABLED_KEY, false)
-        autoFixCommand = props.getValue(AUTO_FIX_COMMAND_KEY, DEFAULT_AUTO_FIX_COMMAND)
-        autoFixWorkingDir = props.getValue(AUTO_FIX_WORKDIR_KEY, project.basePath ?: "")
+        val defaultCommand = resolveDefaultAutoFixCommand(project)
+        val defaultWorkDir = resolveDefaultAutoFixWorkingDir(project)
+        autoFixCommand = props.getValue(AUTO_FIX_COMMAND_KEY, defaultCommand)
+        autoFixWorkingDir = props.getValue(AUTO_FIX_WORKDIR_KEY, defaultWorkDir)
+        autoFixProvider = normalizeProvider(props.getValue(AUTO_FIX_PROVIDER_KEY, DEFAULT_AUTO_FIX_PROVIDER))
+        autoFixAiCommand = props.getValue(AUTO_FIX_AI_COMMAND_KEY)?.trim().takeIf { !it.isNullOrBlank() }
 
         val panel = JPanel(BorderLayout())
         if (JBCefApp.isSupported()) {
             val browser = JBCefBrowser(LOGIN_URL)
             browserRef = browser
-            panel.add(createToolbar(browser), BorderLayout.WEST)
+            panel.add(createToolbar(browser), BorderLayout.NORTH)
             panel.add(browser.component, BorderLayout.CENTER)
             attachRepoTracker(browser)
         } else {
@@ -81,21 +101,19 @@ class QAVTToolWindowFactory : ToolWindowFactory {
         injectAutoFixBridge(browser)
     }
 
-    private fun createToolbar(browser: JBCefBrowser): JToolBar {
-        val toolbar = JToolBar(JToolBar.VERTICAL)
+    private fun createToolbar(browser: JBCefBrowser): JComponent {
+        val toolbar = JToolBar(JToolBar.HORIZONTAL)
         toolbar.isFloatable = false
-        toolbar.layout = BoxLayout(toolbar, BoxLayout.Y_AXIS)
+        toolbar.layout = FlowLayout(FlowLayout.LEFT, 6, 4)
 
         fun formatLabel(label: String): String {
-            if (!label.contains(" ")) return label
-            return "<html><center>${label.split(" ").joinToString("<br>")}</center></html>"
+            return label
         }
 
         fun addButton(label: String, action: () -> Unit): JButton {
             val button = JButton(formatLabel(label))
             button.addActionListener { action() }
-            button.maximumSize = Dimension(160, 44)
-            button.alignmentX = 0.5f
+            button.preferredSize = Dimension(140, 32)
             toolbar.add(button)
             return button
         }
@@ -120,23 +138,23 @@ class QAVTToolWindowFactory : ToolWindowFactory {
                 persistAutoFixSettings()
                 injectAutoFixBridge(browser)
             }
-            maximumSize = Dimension(160, 44)
-            alignmentX = 0.5f
+            preferredSize = Dimension(120, 32)
         }
         toolbar.add(autoFixToggle)
         addButton("Auto Fix Settings") { showAutoFixSettings() }
         toolbar.addSeparator()
         repoLabel = JLabel("Repo: -").apply {
-            maximumSize = Dimension(160, 60)
-            alignmentX = 0.5f
+            preferredSize = Dimension(220, 32)
         }
         toolbar.add(repoLabel)
         toolbar.addSeparator()
         addButton("Open in Browser") { BrowserUtil.browse(HOME_URL) }
 
         updateRepoContext(lastRepoId)
-
-        return toolbar
+        val scroll = JScrollPane(toolbar, ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED)
+        scroll.border = null
+        scroll.preferredSize = Dimension(0, 48)
+        return scroll
     }
 
     private fun openRepoDashboard(browser: JBCefBrowser) {
@@ -173,38 +191,120 @@ class QAVTToolWindowFactory : ToolWindowFactory {
         val project = projectRef ?: return
         val props = PropertiesComponent.getInstance(project)
         props.setValue(AUTO_FIX_ENABLED_KEY, autoFixEnabled)
-        props.setValue(AUTO_FIX_COMMAND_KEY, autoFixCommand ?: DEFAULT_AUTO_FIX_COMMAND)
-        props.setValue(AUTO_FIX_WORKDIR_KEY, autoFixWorkingDir ?: project.basePath.orEmpty())
+        props.setValue(AUTO_FIX_COMMAND_KEY, autoFixCommand ?: resolveDefaultAutoFixCommand(project))
+        props.setValue(AUTO_FIX_WORKDIR_KEY, autoFixWorkingDir ?: resolveDefaultAutoFixWorkingDir(project))
+        props.setValue(AUTO_FIX_PROVIDER_KEY, autoFixProvider)
+        props.setValue(AUTO_FIX_AI_COMMAND_KEY, autoFixAiCommand ?: "")
     }
 
     private fun showAutoFixSettings() {
         val project = projectRef
-        val currentCommand = autoFixCommand ?: DEFAULT_AUTO_FIX_COMMAND
-        val updatedCommand = Messages.showInputDialog(
-            project,
-            "Command template for auto-fixing issues.\nUse placeholders like {repoOwner}, {repoName}, {issueNumber}, {title}, {description}, {buildNumber}, {issueUrl}.",
-            "Auto Fix Command",
-            null,
-            currentCommand,
-            null
-        )
-        if (updatedCommand != null) {
-            autoFixCommand = updatedCommand.trim()
-        }
+        val providerLabels = PROVIDER_LABELS.keys.toTypedArray()
+        val providerCombo = JComboBox(providerLabels)
+        providerCombo.selectedItem = providerLabelForId(autoFixProvider)
 
-        val defaultWorkDir = autoFixWorkingDir?.takeIf { it.isNotBlank() } ?: project?.basePath.orEmpty()
-        val updatedWorkDir = Messages.showInputDialog(
-            project,
-            "Working directory for auto-fix command execution.",
-            "Auto Fix Working Directory",
-            null,
-            defaultWorkDir,
-            null
+        val apiKeyField = JBPasswordField()
+        val clearKeyCheckbox = JBCheckBox("Clear saved key for provider")
+        val aiCommandField = JBTextField(autoFixAiCommand ?: "")
+        val commandField = JBTextField(autoFixCommand ?: resolveDefaultAutoFixCommand(project))
+        val workdirField = JBTextField(autoFixWorkingDir ?: resolveDefaultAutoFixWorkingDir(project))
+
+        val infoLabel = JBLabel(
+            "<html><b>Auto Fix</b> uses a local CLI (codex, claude, gemini). " +
+                "Select a provider and save the API key. Enable Auto Fix in the toolbar, " +
+                "then submit a Quick Issue to run.</html>"
         )
-        if (updatedWorkDir != null) {
-            autoFixWorkingDir = updatedWorkDir.trim()
+
+        val panel = JPanel(GridBagLayout())
+        val gbc = GridBagConstraints().apply {
+            insets = Insets(4, 6, 4, 6)
+            fill = GridBagConstraints.HORIZONTAL
+            anchor = GridBagConstraints.WEST
+            weightx = 1.0
+            gridx = 0
+            gridy = 0
+            gridwidth = 2
+        }
+        panel.add(infoLabel, gbc)
+
+        gbc.gridy++
+        gbc.gridwidth = 1
+        panel.add(JBLabel("Provider"), gbc)
+        gbc.gridx = 1
+        panel.add(providerCombo, gbc)
+
+        gbc.gridy++
+        gbc.gridx = 0
+        panel.add(JBLabel("API Key (stored securely)"), gbc)
+        gbc.gridx = 1
+        panel.add(apiKeyField, gbc)
+
+        gbc.gridy++
+        gbc.gridx = 1
+        panel.add(clearKeyCheckbox, gbc)
+
+        gbc.gridy++
+        gbc.gridx = 0
+        panel.add(JBLabel("LLM command template (optional)"), gbc)
+        gbc.gridx = 1
+        panel.add(aiCommandField, gbc)
+
+        gbc.gridy++
+        gbc.gridx = 0
+        panel.add(JBLabel("Auto-fix command"), gbc)
+        gbc.gridx = 1
+        panel.add(commandField, gbc)
+
+        gbc.gridy++
+        gbc.gridx = 0
+        panel.add(JBLabel("Working directory"), gbc)
+        gbc.gridx = 1
+        panel.add(workdirField, gbc)
+
+        val builder = DialogBuilder(project)
+        builder.setTitle("Auto Fix Settings")
+        builder.setCenterPanel(panel)
+        builder.setPreferredFocusComponent(providerCombo)
+        if (!builder.showAndGet()) return
+
+        val selectedLabel = providerCombo.selectedItem as? String
+        autoFixProvider = normalizeProvider(providerIdForLabel(selectedLabel))
+        autoFixAiCommand = aiCommandField.text.trim().takeIf { it.isNotEmpty() }
+        autoFixCommand = commandField.text.trim().ifBlank { resolveDefaultAutoFixCommand(project) }
+        autoFixWorkingDir = workdirField.text.trim().ifBlank { resolveDefaultAutoFixWorkingDir(project) }
+
+        val keyInput = String(apiKeyField.password).trim()
+        if (clearKeyCheckbox.isSelected) {
+            saveApiKey(autoFixProvider, null)
+        } else if (keyInput.isNotEmpty()) {
+            saveApiKey(autoFixProvider, keyInput)
         }
         persistAutoFixSettings()
+    }
+
+    private fun resolveDefaultAutoFixWorkingDir(project: Project?): String {
+        val script = resolveAutoFixScript(project)
+        return script?.parentFile?.parentFile?.absolutePath ?: project?.basePath.orEmpty()
+    }
+
+    private fun resolveDefaultAutoFixCommand(project: Project?): String {
+        val scriptPath = resolveAutoFixScript(project)?.absolutePath ?: DEFAULT_AUTO_FIX_SCRIPT_PATH
+        val quotedScript = if (scriptPath.contains(" ")) "\"$scriptPath\"" else scriptPath
+        return "powershell -ExecutionPolicy Bypass -File $quotedScript " +
+            "-RepoOwner {repoOwner} -RepoName {repoName} -IssueNumber {issueNumber} " +
+            "-Title \"{title}\" -Description \"{description}\" -BuildNumber {buildNumber} -IssueUrl {issueUrl}"
+    }
+
+    private fun resolveAutoFixScript(project: Project?): File? {
+        val basePath = project?.basePath ?: return null
+        var current: File? = File(basePath)
+        repeat(6) {
+            val candidate = File(current, DEFAULT_AUTO_FIX_SCRIPT_PATH)
+            if (candidate.exists()) return candidate
+            current = current?.parentFile
+            if (current == null) return null
+        }
+        return null
     }
 
     private fun injectAutoFixBridge(browser: JBCefBrowser) {
@@ -335,9 +435,9 @@ class QAVTToolWindowFactory : ToolWindowFactory {
             values["githubToken"] = ""
         }
 
-        val commandTemplate = autoFixCommand ?: DEFAULT_AUTO_FIX_COMMAND
+        val commandTemplate = autoFixCommand ?: resolveDefaultAutoFixCommand(projectRef)
         val commandLine = expandTemplate(commandTemplate, values)
-        val workingDir = autoFixWorkingDir?.takeIf { it.isNotBlank() } ?: projectRef?.basePath.orEmpty()
+        val workingDir = autoFixWorkingDir?.takeIf { it.isNotBlank() } ?: resolveDefaultAutoFixWorkingDir(projectRef)
         runAutoFixCommand(commandLine, workingDir)
     }
 
@@ -368,11 +468,17 @@ class QAVTToolWindowFactory : ToolWindowFactory {
         val project = projectRef
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
+                val credentialError = validateAutoFixCredentials()
+                if (credentialError != null) {
+                    showAutoFixMessage("Auto Fix", credentialError, true)
+                    return@executeOnPooledThread
+                }
                 val command = buildShellCommand(commandLine)
                 val processBuilder = ProcessBuilder(command)
                 if (workingDir.isNotBlank()) {
                     processBuilder.directory(File(workingDir))
                 }
+                configureAutoFixEnvironment(processBuilder.environment())
                 processBuilder.redirectErrorStream(true)
                 val process = processBuilder.start()
                 val output = process.inputStream.bufferedReader().readText()
@@ -387,6 +493,68 @@ class QAVTToolWindowFactory : ToolWindowFactory {
                 showAutoFixMessage("Auto Fix Failed", e.message ?: "Unknown error.", true)
             }
         }
+    }
+
+    private fun configureAutoFixEnvironment(env: MutableMap<String, String>) {
+        val providerId = normalizeProvider(autoFixProvider)
+        env["QAVT_AI_PROVIDER"] = providerId
+        autoFixAiCommand?.takeIf { it.isNotBlank() }?.let { env["QAVT_AI_COMMAND"] = it }
+
+        val apiKey = loadApiKey(providerId)
+        if (apiKey.isNullOrBlank()) return
+        when (providerId) {
+            "openai", "codex" -> env["OPENAI_API_KEY"] = apiKey
+            "claude" -> env["ANTHROPIC_API_KEY"] = apiKey
+            "gemini" -> {
+                env["GEMINI_API_KEY"] = apiKey
+                env["GOOGLE_API_KEY"] = apiKey
+            }
+        }
+    }
+
+    private fun validateAutoFixCredentials(): String? {
+        if (!autoFixAiCommand.isNullOrBlank()) {
+            return null
+        }
+        val providerId = normalizeProvider(autoFixProvider)
+        if (providerId == "custom") return null
+        val apiKey = loadApiKey(providerId)
+        if (!apiKey.isNullOrBlank()) return null
+        val label = providerLabelForId(providerId)
+        return "Missing API key for $label. Open Auto Fix Settings and add a key."
+    }
+
+    private fun credentialAttributes(providerId: String): CredentialAttributes {
+        val key = providerId.ifBlank { DEFAULT_AUTO_FIX_PROVIDER }
+        return CredentialAttributes("QAVT Auto Fix", key)
+    }
+
+    private fun loadApiKey(providerId: String): String? {
+        return PasswordSafe.instance.getPassword(credentialAttributes(providerId))
+    }
+
+    private fun saveApiKey(providerId: String, apiKey: String?) {
+        val attributes = credentialAttributes(providerId)
+        if (apiKey.isNullOrBlank()) {
+            PasswordSafe.instance.set(attributes, null)
+        } else {
+            PasswordSafe.instance.set(attributes, Credentials("api-key", apiKey))
+        }
+    }
+
+    private fun normalizeProvider(value: String?): String {
+        val normalized = value?.trim()?.lowercase().orEmpty()
+        return if (PROVIDER_LABELS.containsValue(normalized)) normalized else DEFAULT_AUTO_FIX_PROVIDER
+    }
+
+    private fun providerLabelForId(providerId: String?): String {
+        val normalized = normalizeProvider(providerId)
+        return PROVIDER_LABELS.entries.firstOrNull { it.value == normalized }?.key
+            ?: PROVIDER_LABELS.keys.first()
+    }
+
+    private fun providerIdForLabel(label: String?): String {
+        return label?.let { PROVIDER_LABELS[it] } ?: DEFAULT_AUTO_FIX_PROVIDER
     }
 
     private fun buildShellCommand(commandLine: String): List<String> {
@@ -472,10 +640,15 @@ class QAVTToolWindowFactory : ToolWindowFactory {
         const val AUTO_FIX_ENABLED_KEY = "qavt.autoFix.enabled"
         const val AUTO_FIX_COMMAND_KEY = "qavt.autoFix.command"
         const val AUTO_FIX_WORKDIR_KEY = "qavt.autoFix.workdir"
-        const val DEFAULT_AUTO_FIX_COMMAND =
-            "powershell -ExecutionPolicy Bypass -File scripts/auto_fix_and_publish.ps1 " +
-                "-RepoOwner {repoOwner} -RepoName {repoName} -IssueNumber {issueNumber} " +
-                "-Title \"{title}\" -Description \"{description}\" -BuildNumber {buildNumber} " +
-                "-GithubToken {githubToken}"
+        const val AUTO_FIX_PROVIDER_KEY = "qavt.autoFix.provider"
+        const val AUTO_FIX_AI_COMMAND_KEY = "qavt.autoFix.aiCommand"
+        const val DEFAULT_AUTO_FIX_SCRIPT_PATH = "scripts/auto_fix_and_publish.ps1"
+        const val DEFAULT_AUTO_FIX_PROVIDER = "openai"
+        val PROVIDER_LABELS = linkedMapOf(
+            "OpenAI (Codex)" to "openai",
+            "Claude" to "claude",
+            "Gemini" to "gemini",
+            "Custom" to "custom"
+        )
     }
 }

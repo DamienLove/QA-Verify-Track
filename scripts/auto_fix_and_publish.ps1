@@ -23,6 +23,40 @@ function Expand-Template {
     return $result
 }
 
+function Resolve-AICommandTemplate {
+    $aiTemplate = $env:QAVT_AI_COMMAND
+    if (-not [string]::IsNullOrWhiteSpace($aiTemplate)) {
+        return $aiTemplate
+    }
+
+    $provider = $env:QAVT_AI_PROVIDER
+    if (-not [string]::IsNullOrWhiteSpace($provider)) {
+        switch ($provider.ToLower()) {
+            "claude" { return "claude ""{prompt}""" }
+            "gemini" { return "gemini ""{prompt}""" }
+            "codex" { return "codex ""{prompt}""" }
+            "openai" { return "codex ""{prompt}""" }
+        }
+    }
+
+    if (Get-Command codex -ErrorAction SilentlyContinue) { return "codex ""{prompt}""" }
+    if (Get-Command claude -ErrorAction SilentlyContinue) { return "claude ""{prompt}""" }
+    if (Get-Command gemini -ErrorAction SilentlyContinue) { return "gemini ""{prompt}""" }
+
+    return "codex ""{prompt}"""
+}
+
+function Has-GitChanges {
+    $status = git status --porcelain 2>$null
+    return -not [string]::IsNullOrWhiteSpace($status)
+}
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+if ([string]::IsNullOrWhiteSpace($IssueUrl) -and -not [string]::IsNullOrWhiteSpace($RepoOwner) -and -not [string]::IsNullOrWhiteSpace($RepoName) -and -not [string]::IsNullOrWhiteSpace($IssueNumber)) {
+    $IssueUrl = "https://github.com/$RepoOwner/$RepoName/issues/$IssueNumber"
+}
+
 function Increment-AndroidVersion {
     $gradlePath = Join-Path $PSScriptRoot "..\androidApp\app\build.gradle.kts"
     if (-not (Test-Path $gradlePath)) {
@@ -87,10 +121,12 @@ function Post-GitHubComment {
 # 1. Run AI Fix
 $prompt = @"
 You are an AI coding agent. Fix the issue in the repository and leave the workspace ready to build.
+Do not publish artifacts; only change code.
 
 Issue: #$IssueNumber $Title
 Repo: $RepoOwner/$RepoName
 Build: $BuildNumber
+URL: $IssueUrl
 
 Description:
 $Description
@@ -103,18 +139,70 @@ $values = @{
     title       = $Title
     description = $Description
     buildNumber = $BuildNumber
+    issueUrl    = $IssueUrl
     prompt      = $prompt
 }
 
-$aiTemplate = $env:QAVT_AI_COMMAND
-if ([string]::IsNullOrWhiteSpace($aiTemplate)) {
-    $aiTemplate = "codex ""{prompt}"""
-}
-
+$aiTemplate = Resolve-AICommandTemplate
 $aiCommand = Expand-Template -Template $aiTemplate -Values $values
 Write-Host "Running AI command: $aiCommand"
-Invoke-Expression $aiCommand
+Push-Location $repoRoot
+try {
+    Invoke-Expression $aiCommand
+} finally {
+    Pop-Location
+}
 
+$requireChange = $env:QAVT_REQUIRE_CODE_CHANGE
+if ($requireChange -ne "false") {
+    if (-not (Has-GitChanges)) {
+        Write-Error "No code changes detected. Auto-fix requires a code change."
+        exit 2
+    }
+}
+
+$commitChanges = $env:QAVT_COMMIT_CHANGES
+if ($commitChanges -ne "false") {
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        Push-Location $repoRoot
+        try {
+            $insideRepo = git rev-parse --is-inside-work-tree 2>$null
+            if ($LASTEXITCODE -eq 0 -and $insideRepo.Trim() -eq "true") {
+                if (Has-GitChanges) {
+                    git add -A | Out-Host
+                    $cleanTitle = if ([string]::IsNullOrWhiteSpace($Title)) { "issue $IssueNumber" } else { $Title }
+                    $commitMessage = "Auto-fix issue #$IssueNumber: $cleanTitle"
+                    git commit -m $commitMessage | Out-Host
+                    if ($env:QAVT_PUSH_CHANGES -eq "true") {
+                        git push | Out-Host
+                    } else {
+                        Write-Host "Skipping git push. Set QAVT_PUSH_CHANGES=true to enable."
+                    }
+                } else {
+                    Write-Host "No git changes detected; skipping commit."
+                }
+            } else {
+                Write-Host "Not a git repository; skipping commit."
+            }
+        } catch {
+            Write-Host "Failed to commit changes: $($_.Exception.Message)"
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Host "git not available; skipping commit."
+    }
+}
+
+$publishAndroid = $env:QAVT_PUBLISH_ANDROID
+if ($publishAndroid -eq "false") {
+    Write-Host "Skipping Play Store publish. Set QAVT_PUBLISH_ANDROID=true to enable."
+} else {
+    $gradleDir = Resolve-Path (Join-Path $repoRoot "androidApp")
+    $gradlew = Join-Path $gradleDir "gradlew.bat"
+    if (-not (Test-Path $gradlew)) {
+        $gradlew = Join-Path $gradleDir "gradlew"
+    }
 # 2. Increment Android Version
 $newVersion = Increment-AndroidVersion
 
@@ -142,12 +230,11 @@ if (Test-Path $gradleDir) {
             & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "internal" "--to-track" "closed"
             & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "closed" "--to-track" "open"
             & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "open" "--to-track" "production"
-        }
-    } finally {
+        }} finally {
         Pop-Location
     }
 } else {
-    Write-Warning "AndroidApp directory not found at $gradleDir"
+            Write-Warning "AndroidApp directory not found at $gradleDir"
 }
 
 # 4. Build and Deploy Web App
@@ -173,9 +260,33 @@ try {
         cmd /c firebase deploy --only hosting
     } else {
         Write-Warning "Firebase CLI not found. Skipping deployment."
+        }
+    } finally {
+        Pop-Location
     }
-} finally {
-    Pop-Location
+}
+
+$publishWeb = $env:QAVT_PUBLISH_WEB
+if ($publishWeb -eq "false") {
+    Write-Host "Skipping web deploy. Set QAVT_PUBLISH_WEB=true to enable."
+} else {
+    $webBuildCommand = $env:QAVT_WEB_BUILD_COMMAND
+    if ([string]::IsNullOrWhiteSpace($webBuildCommand)) {
+        $webBuildCommand = "npm run build"
+    }
+    $webDeployCommand = $env:QAVT_WEB_DEPLOY_COMMAND
+    if ([string]::IsNullOrWhiteSpace($webDeployCommand)) {
+        $webDeployCommand = "npm run deploy:hosting"
+    }
+    Push-Location $repoRoot
+    try {
+        Write-Host "Building web app..."
+        Invoke-Expression $webBuildCommand
+        Write-Host "Deploying web app..."
+        Invoke-Expression $webDeployCommand
+    } finally {
+        Pop-Location
+    }
 }
 
 # 5. Build Plugin (Optional - rebuild plugin if it was changed)

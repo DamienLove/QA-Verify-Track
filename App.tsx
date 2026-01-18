@@ -749,10 +749,12 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     }, [activeApp?.id, activeApp?.buildNumber]);
 
-    const persistBuildNumber = async (value: string) => {
-        if (!repo || !activeApp) return;
+    const persistBuildNumber = async (value: string, appId?: string) => {
+        if (!repo) return;
+        const targetId = appId || activeApp?.id;
+        if (!targetId) return;
         const updatedApps = repo.apps.map(app =>
-            app.id === activeApp.id ? { ...app, buildNumber: value } : app
+            app.id === targetId ? { ...app, buildNumber: value } : app
         );
         const updatedRepo = { ...repo, apps: updatedApps };
         const updatedRepos = repos.map(r => (r.id === repo.id ? updatedRepo : r));
@@ -804,6 +806,15 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         setTests(updatedTests);
         setNewTestDesc('');
         await handleSaveTests(updatedTests);
+    };
+
+    const openTestsForApp = (app: AppConfig) => {
+        setActiveAppId(app.id);
+        setTab('tests');
+        if (app.buildNumber) {
+            setBuildNumber(app.buildNumber);
+            persistBuildNumber(app.buildNumber, app.id);
+        }
     };
 
     const toggleTest = async (testId: string) => {
@@ -1702,8 +1713,8 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
 
     return (
         <div className="relative flex h-full min-h-screen w-full flex-col overflow-x-hidden pb-24">
-            <header className="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+            <header className="sticky top-0 z-20 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 px-4 py-3 flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                     <button onClick={() => navigate('/')} aria-label="Go back to home" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors">
                         <span className="material-symbols-outlined text-slate-900 dark:text-white">arrow_back</span>
                     </button>
@@ -1712,26 +1723,28 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{repo?.displayName || repo?.name}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <a
-                        href={repo ? `https://github.com/${repo.owner}/${repo.name}/projects` : '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-[#253827] px-2.5 py-1.5 text-[10px] sm:text-[11px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors"
-                    >
-                        <span className="material-symbols-outlined text-[14px]">dashboard</span>
-                        Projects
-                    </a>
-                    <div className="flex items-center bg-gray-200 dark:bg-surface-dark-lighter rounded-lg p-0.5 border border-transparent dark:border-white/10">    
-                        <button onClick={() => setTab('issues')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'issues' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Issues</button>
-                        <button onClick={() => setTab('prs')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'prs' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>PRs</button>
-                        <button onClick={() => setTab('tests')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'tests' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Tests</button>
+                <div className="flex-1 min-w-0 flex items-center justify-end">
+                    <div className="flex items-center gap-2 overflow-x-auto py-1">
+                        <a
+                            href={repo ? `https://github.com/${repo.owner}/${repo.name}/projects` : '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-[#253827] px-2.5 py-1.5 text-[10px] sm:text-[11px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors whitespace-nowrap"
+                        >
+                            <span className="material-symbols-outlined text-[14px]">dashboard</span>
+                            Projects
+                        </a>
+                        <div className="shrink-0 flex items-center bg-gray-200 dark:bg-surface-dark-lighter rounded-lg p-0.5 border border-transparent dark:border-white/10 whitespace-nowrap">    
+                            <button onClick={() => setTab('issues')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'issues' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Issues</button>
+                            <button onClick={() => setTab('prs')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'prs' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>PRs</button>
+                            <button onClick={() => setTab('tests')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${tab === 'tests' ? 'bg-primary text-black shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white'}`}>Tests</button>
+                        </div>
                     </div>
                 </div>
             </header>
 
             <section className="px-4 py-3 space-y-3">
-                 <div className="flex items-end gap-3">
+                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                     <div className="flex-1 space-y-1.5">
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
@@ -1771,6 +1784,50 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                              ))}
                          </select>
                     </div>
+                 </div>
+                 <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-surface-dark-lighter/80 p-3 shadow-sm">
+                     <div className="flex items-center justify-between">
+                         <div>
+                             <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Test Builds</p>
+                             <p className="text-[11px] text-gray-400">Jump to tests by build and platform.</p>
+                         </div>
+                         <button
+                             onClick={() => setTab('tests')}
+                             className="rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-[#253827] px-2.5 py-1.5 text-[10px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors"
+                         >
+                             Open Tests
+                         </button>
+                     </div>
+                     <div className="mt-3 space-y-2">
+                         {repo?.apps.map(app => (
+                             <div key={app.id} className="flex flex-col gap-2 rounded-lg border border-gray-100 dark:border-white/5 bg-white/80 dark:bg-black/20 p-2 sm:flex-row sm:items-center sm:justify-between">
+                                 <div>
+                                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{app.name} <span className="text-[11px] text-gray-500">({app.platform})</span></p>
+                                     <p className="text-[11px] text-gray-500">Build #{app.buildNumber || '—'}</p>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                     <button
+                                         onClick={() => openTestsForApp(app)}
+                                         className="rounded-lg border border-gray-200 dark:border-white/10 px-3 py-1.5 text-[11px] font-semibold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors"
+                                     >
+                                         View Tests
+                                     </button>
+                                     {app.playStoreUrl ? (
+                                         <a
+                                             href={app.playStoreUrl}
+                                             target="_blank"
+                                             rel="noopener noreferrer"
+                                             className="rounded-lg bg-primary/10 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20"
+                                         >
+                                             Open Test
+                                         </a>
+                                     ) : (
+                                         <span className="text-[10px] uppercase tracking-wide text-gray-400">No test url</span>
+                                     )}
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
                  </div>
             </section>
             <div className="h-px w-full bg-gray-200 dark:bg-white/5 mb-4"></div>
