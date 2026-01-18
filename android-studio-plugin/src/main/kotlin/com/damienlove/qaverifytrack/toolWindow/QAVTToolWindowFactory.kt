@@ -331,6 +331,9 @@ class QAVTToolWindowFactory : ToolWindowFactory {
         if (owner.isNotBlank() && repo.isNotBlank() && issueNumber.isNotBlank()) {
             values["issueUrl"] = "https://github.com/$owner/$repo/issues/$issueNumber"
         }
+        if (!values.containsKey("githubToken")) {
+            values["githubToken"] = ""
+        }
 
         val commandTemplate = autoFixCommand ?: DEFAULT_AUTO_FIX_COMMAND
         val commandLine = expandTemplate(commandTemplate, values)
@@ -472,6 +475,7 @@ class QAVTToolWindowFactory : ToolWindowFactory {
         const val DEFAULT_AUTO_FIX_COMMAND =
             "powershell -ExecutionPolicy Bypass -File scripts/auto_fix_and_publish.ps1 " +
                 "-RepoOwner {repoOwner} -RepoName {repoName} -IssueNumber {issueNumber} " +
-                "-Title \"{title}\" -Description \"{description}\" -BuildNumber {buildNumber}"
+                "-Title \"{title}\" -Description \"{description}\" -BuildNumber {buildNumber} " +
+                "-GithubToken {githubToken}"
     }
 }

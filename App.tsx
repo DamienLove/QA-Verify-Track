@@ -876,6 +876,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
   const [blockReason, setBlockReason] = useState('');
   const [blockSaving, setBlockSaving] = useState(false);
   const [blockError, setBlockError] = useState('');
+  const autoFixAvailable = typeof window !== 'undefined' && Boolean((window as any).QAVT_AUTO_FIX?.issueCreated);
 
   // Use a ref to track analysis state for stable callbacks
   const analyzingIdsRef = React.useRef(new Set<number>());
@@ -1158,7 +1159,38 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 return next;
             });
         }
-    };
+    }, []);
+
+    const handleAutoFix = React.useCallback((issue: Issue) => {
+        if (!activeToken) {
+            alert("GitHub token is required for Auto Fix.");
+            return;
+        }
+        if (typeof window === 'undefined' || !(window as any).QAVT_AUTO_FIX?.issueCreated) {
+            alert("Auto Fix plugin bridge not detected.");
+            return;
+        }
+
+        const confirmFix = window.confirm(`Auto Fix issue #${issue.number}? This will trigger AI agent and publish a new build.`);
+        if (!confirmFix) return;
+
+        try {
+            const payload = new URLSearchParams({
+                repoId: repo.id,
+                repoOwner: repo.owner,
+                repoName: repo.name,
+                issueNumber: issue.number.toString(),
+                title: issue.title,
+                description: issue.description || '',
+                buildNumber: buildNumber,
+                githubToken: activeToken
+            }).toString();
+            (window as any).QAVT_AUTO_FIX.issueCreated(payload);
+        } catch (e) {
+            console.error('Failed to trigger auto fix', e);
+            alert("Failed to trigger auto fix.");
+        }
+    }, [repo, activeToken, buildNumber]);
 
     const toggleSelectAllPrs = () => {
         if (allPrsSelected) {
@@ -1183,7 +1215,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const clearPrSelection = () => {
         setSelectedPrIds(new Set());
     };
-    }, [repo]); // Include repo in dependencies to ensure context validity if logic expands, though currently unused.
 
     const handleMergeSequence = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
@@ -1777,6 +1808,8 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                     onOpen={handleOpen}
                                     onBlock={openBlockPrompt}
                                     onAnalyze={handleAnalyze}
+                                    onAutoFix={handleAutoFix}
+                                    autoFixAvailable={autoFixAvailable}
                                 />
                             ))
                         )}
