@@ -536,8 +536,9 @@ const ConfigurationPage = ({
                     <section className="space-y-4">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-primary">GitHub</h2>
                         <div className="space-y-2">
-                            <label className="text-xs text-gray-500">Global GitHub Personal Access Token (PAT)</label>
+                            <label htmlFor="global-token" className="text-xs text-gray-500">Global GitHub Personal Access Token (PAT)</label>
                             <input
+                                id="global-token"
                                 value={globalForm.globalGithubToken || ''}
                                 onChange={(e) => setGlobalForm({ ...globalForm, globalGithubToken: e.target.value })}
                                 type="password"
@@ -594,17 +595,17 @@ const ConfigurationPage = ({
                     <h2 className="text-sm font-bold uppercase tracking-wider text-primary">GitHub Details</h2>
                     <div className="space-y-3">
                         <div className="space-y-1">
-                            <label className="text-xs text-gray-500">Display Name</label>
-                            <input value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                            <label htmlFor="repo-display-name" className="text-xs text-gray-500">Display Name</label>
+                            <input id="repo-display-name" value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" autoFocus />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
-                                <label className="text-xs text-gray-500">Owner</label>
-                                <input value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" placeholder="org" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                <label htmlFor="repo-owner" className="text-xs text-gray-500">Owner</label>
+                                <input id="repo-owner" value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" placeholder="org" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-gray-500">Repo Name</label>
-                                <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                <label htmlFor="repo-name" className="text-xs text-gray-500">Repo Name</label>
+                                <input id="repo-name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -623,8 +624,8 @@ const ConfigurationPage = ({
                             </div>
                             {useCustomToken ? (
                                 <>
-                                    <label className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
-                                    <input value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                    <label htmlFor="repo-token" className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
+                                    <input id="repo-token" value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                                     <p className="text-[10px] text-gray-500">Used for reading/writing to this repository.</p>
                                 </>
                             ) : (
@@ -653,12 +654,12 @@ const ConfigurationPage = ({
                             </button>
                             <div className="grid grid-cols-2 gap-3 pr-6">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] uppercase text-gray-500">App Name</label>
-                                    <input value={app.name} onChange={e => updateApp(idx, 'name', e.target.value)} type="text" className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
+                                    <label htmlFor={`app-name-${idx}`} className="text-[10px] uppercase text-gray-500">App Name</label>
+                                    <input id={`app-name-${idx}`} value={app.name} onChange={e => updateApp(idx, 'name', e.target.value)} type="text" className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] uppercase text-gray-500">Platform</label>
-                                    <select value={app.platform} onChange={e => updateApp(idx, 'platform', e.target.value as any)} className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white">
+                                    <label htmlFor={`app-platform-${idx}`} className="text-[10px] uppercase text-gray-500">Platform</label>
+                                    <select id={`app-platform-${idx}`} value={app.platform} onChange={e => updateApp(idx, 'platform', e.target.value as any)} className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white">
                                         <option value="android">Android</option>
                                         <option value="ios">iOS</option>
                                         <option value="web">Web</option>
@@ -666,12 +667,12 @@ const ConfigurationPage = ({
                                 </div>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] uppercase text-gray-500">Test URL (Play Store/TestFlight)</label>
-                                <input value={app.playStoreUrl || ''} onChange={e => updateApp(idx, 'playStoreUrl', e.target.value)} type="text" placeholder="https://..." className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
+                                <label htmlFor={`app-url-${idx}`} className="text-[10px] uppercase text-gray-500">Test URL (Play Store/TestFlight)</label>
+                                <input id={`app-url-${idx}`} value={app.playStoreUrl || ''} onChange={e => updateApp(idx, 'playStoreUrl', e.target.value)} type="text" placeholder="https://..." className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] uppercase text-gray-500">Current Build #</label>
-                                <input value={app.buildNumber} onChange={e => updateApp(idx, 'buildNumber', e.target.value)} type="text" className="w-24 bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-900 dark:text-white" />
+                                <label htmlFor={`app-build-${idx}`} className="text-[10px] uppercase text-gray-500">Current Build #</label>
+                                <input id={`app-build-${idx}`} value={app.buildNumber} onChange={e => updateApp(idx, 'buildNumber', e.target.value)} type="text" className="w-24 bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-900 dark:text-white" />
                             </div>
                         </div>
                     ))}
