@@ -7,6 +7,7 @@ import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
+import { IssueCard } from './components/IssueCard';
 
 const normalizeRepos = (repos: Repository[]): Repository[] =>
   repos.map((repo) => ({
@@ -276,8 +277,8 @@ const ConfigurationPage = ({
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const repoParam = searchParams.get('repo');
-    const [view, setView] = useState<'list' | 'edit' | 'global'>('list');       
-    const [activeRepoId, setActiveRepoId] = useState<string | null>(null);      
+    const [view, setView] = useState<'list' | 'edit' | 'global'>('list');
+    const [activeRepoId, setActiveRepoId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
 
@@ -369,6 +370,28 @@ const ConfigurationPage = ({
         if (!formData.name || !formData.owner) {
             setSaveError('Owner and repo name are required.');
             return;
+        }
+
+        // Validate Owner (GitHub username format: alphanumeric, single hyphens, no start/end hyphen)
+        const ownerRegex = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
+        if (!ownerRegex.test(formData.owner)) {
+            setSaveError('Invalid owner name. Use only alphanumeric characters and single hyphens.');
+            return;
+        }
+
+        // Validate Repo Name (alphanumeric, periods, underscores, hyphens)
+        const repoRegex = /^[\w.-]+$/;
+        if (!repoRegex.test(formData.name)) {
+            setSaveError('Invalid repository name. Use only alphanumeric characters, underscores, hyphens, and periods.');
+            return;
+        }
+
+        // Validate Token (no whitespace)
+        if (formData.useCustomToken !== false && formData.githubToken) {
+            if (/\s/.test(formData.githubToken)) {
+                setSaveError('Token must not contain whitespace.');
+                return;
+            }
         }
 
         setSaveError('');
@@ -543,8 +566,9 @@ const ConfigurationPage = ({
                     <section className="space-y-4">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-primary">GitHub</h2>
                         <div className="space-y-2">
-                            <label className="text-xs text-gray-500">Global GitHub Personal Access Token (PAT)</label>
+                            <label htmlFor="global-token" className="text-xs text-gray-500">Global GitHub Personal Access Token (PAT)</label>
                             <input
+                                id="global-token"
                                 value={globalForm.globalGithubToken || ''}
                                 onChange={(e) => setGlobalForm({ ...globalForm, globalGithubToken: e.target.value })}
                                 type="password"
@@ -601,17 +625,17 @@ const ConfigurationPage = ({
                     <h2 className="text-sm font-bold uppercase tracking-wider text-primary">GitHub Details</h2>
                     <div className="space-y-3">
                         <div className="space-y-1">
-                            <label className="text-xs text-gray-500">Display Name</label>
-                            <input value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                            <label htmlFor="repo-display-name" className="text-xs text-gray-500">Display Name</label>
+                            <input id="repo-display-name" value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" autoFocus />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
-                                <label className="text-xs text-gray-500">Owner</label>
-                                <input value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" placeholder="org" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                <label htmlFor="repo-owner" className="text-xs text-gray-500">Owner</label>
+                                <input id="repo-owner" value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" placeholder="org" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-gray-500">Repo Name</label>
-                                <input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                <label htmlFor="repo-name" className="text-xs text-gray-500">Repo Name</label>
+                                <input id="repo-name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -627,8 +651,8 @@ const ConfigurationPage = ({
                             </div>
                             {useCustomToken ? (
                                 <>
-                                    <label className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
-                                    <input value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                    <label htmlFor="repo-token" className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
+                                    <input id="repo-token" value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                                     <p className="text-[10px] text-gray-500">Used for reading/writing to this repository.</p>
                                 </>
                             ) : (
@@ -657,12 +681,12 @@ const ConfigurationPage = ({
                             </button>
                             <div className="grid grid-cols-2 gap-3 pr-6">
                                 <div className="space-y-1">
-                                    <label className="text-[10px] uppercase text-gray-500">App Name</label>
-                                    <input value={app.name} onChange={e => updateApp(idx, 'name', e.target.value)} type="text" className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
+                                    <label htmlFor={`app-name-${idx}`} className="text-[10px] uppercase text-gray-500">App Name</label>
+                                    <input id={`app-name-${idx}`} value={app.name} onChange={e => updateApp(idx, 'name', e.target.value)} type="text" className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
                                 </div>
                                 <div className="space-y-1">
-                                    <label className="text-[10px] uppercase text-gray-500">Platform</label>
-                                    <select value={app.platform} onChange={e => updateApp(idx, 'platform', e.target.value as any)} className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white">
+                                    <label htmlFor={`app-platform-${idx}`} className="text-[10px] uppercase text-gray-500">Platform</label>
+                                    <select id={`app-platform-${idx}`} value={app.platform} onChange={e => updateApp(idx, 'platform', e.target.value as any)} className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white">
                                         <option value="android">Android</option>
                                         <option value="ios">iOS</option>
                                         <option value="web">Web</option>
@@ -670,12 +694,12 @@ const ConfigurationPage = ({
                                 </div>
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] uppercase text-gray-500">Test URL (Play Store/TestFlight)</label>
-                                <input value={app.playStoreUrl || ''} onChange={e => updateApp(idx, 'playStoreUrl', e.target.value)} type="text" placeholder="https://..." className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
+                                <label htmlFor={`app-url-${idx}`} className="text-[10px] uppercase text-gray-500">Test URL (Play Store/TestFlight)</label>
+                                <input id={`app-url-${idx}`} value={app.playStoreUrl || ''} onChange={e => updateApp(idx, 'playStoreUrl', e.target.value)} type="text" placeholder="https://..." className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-[10px] uppercase text-gray-500">Current Build #</label>
-                                <input value={app.buildNumber} onChange={e => updateApp(idx, 'buildNumber', e.target.value)} type="text" className="w-24 bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-900 dark:text-white" />
+                                <label htmlFor={`app-build-${idx}`} className="text-[10px] uppercase text-gray-500">Current Build #</label>
+                                <input id={`app-build-${idx}`} value={app.buildNumber} onChange={e => updateApp(idx, 'buildNumber', e.target.value)} type="text" className="w-24 bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-900 dark:text-white" />
                             </div>
                         </div>
                     ))}
@@ -853,6 +877,12 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
   const [blockSaving, setBlockSaving] = useState(false);
   const [blockError, setBlockError] = useState('');
 
+  // Use a ref to track analysis state for stable callbacks
+  const analyzingIdsRef = React.useRef(new Set<number>());
+  useEffect(() => {
+      analyzingIdsRef.current = analyzingIds;
+  }, [analyzingIds]);
+
     // Initial Fetch
     useEffect(() => {
         if (repo && activeToken) {
@@ -989,19 +1019,19 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         });
     }, [prs]);
 
-    const startIssueAction = (issueId: number) => {
+    const startIssueAction = React.useCallback((issueId: number) => {
         setIssueActionIds(prev => new Set(prev).add(issueId));
-    };
+    }, []);
 
-    const endIssueAction = (issueId: number) => {
+    const endIssueAction = React.useCallback((issueId: number) => {
         setIssueActionIds(prev => {
             const next = new Set(prev);
             next.delete(issueId);
             return next;
         });
-    };
+    }, []);
 
-    const handleFixed = async (id: number, number: number) => {
+    const handleFixed = React.useCallback(async (id: number, number: number) => {
         setIssueActionError('');
         startIssueAction(id);
         const buildTag = (buildNumber || '').trim();
@@ -1035,9 +1065,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             }
             endIssueAction(id);
         }
-    };
+    }, [buildNumber, repo.owner, repo.name, startIssueAction, endIssueAction]);
 
-    const handleOpen = async (id: number, number: number) => {
+    const handleOpen = React.useCallback(async (id: number, number: number) => {
         setIssueActionError('');
         startIssueAction(id);
         const buildTag = (buildNumber || '').trim();
@@ -1072,13 +1102,13 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             }
             endIssueAction(id);
         }
-    };
+    }, [buildNumber, repo.owner, repo.name, startIssueAction, endIssueAction]);
 
-    const openBlockPrompt = (issue: Issue) => {
+    const openBlockPrompt = React.useCallback((issue: Issue) => {
         setBlockIssue(issue);
         setBlockReason('');
         setBlockError('');
-    };
+    }, []);
 
     const handleBlocked = async () => {
         if (!blockIssue) return;
@@ -1113,8 +1143,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     };
 
     // --- AI Analysis Handler ---
-    const handleAnalyze = async (issue: Issue) => {
-        if (analyzingIds.has(issue.id)) return;
+    const handleAnalyze = React.useCallback(async (issue: Issue) => {
+        // Use ref to avoid stale closure or dependency loop on analyzingIds
+        if (analyzingIdsRef.current.has(issue.id)) return;
         
         setAnalyzingIds(prev => new Set(prev).add(issue.id));
         try {
@@ -1152,6 +1183,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const clearPrSelection = () => {
         setSelectedPrIds(new Set());
     };
+    }, [repo]); // Include repo in dependencies to ensure context validity if logic expands, though currently unused.
 
     const handleMergeSequence = async (pr: PullRequest) => {
         setPrProcessing(pr.id);
@@ -1733,58 +1765,20 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         {issues.length === 0 ? (
                             <div className="text-center py-10 opacity-50"><span className="material-symbols-outlined text-6xl text-gray-600">check_circle</span><p className="mt-4 text-gray-400">All cleared for build {buildNumber}!</p></div>
                         ) : (
-                            issues.map(issue => {
-                                const isIssueBusy = issueActionIds.has(issue.id);
-                                return (
-                                <article key={issue.id} className="relative flex flex-col gap-1.5 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-2 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
-                                    <div className="flex items-start justify-between gap-2.5">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`font-bold text-xs tracking-tight flex items-center gap-1 uppercase ${issue.priority === 'critical' ? 'text-red-500' : issue.priority === 'high' ? 'text-orange-500' : 'text-blue-400'}`}>
-                                                    <span className="material-symbols-outlined text-[14px] fill-1">{issue.priority === 'critical' ? 'error' : 'flag'}</span>{issue.priority}
-                                                </span>
-                                                <span className="text-gray-500 dark:text-gray-500 text-[11px] font-medium">#{issue.number}</span>
-                                            </div>
-                                            <Link to={`/issue/${repo.id}/${issue.number}`} className="text-base font-semibold text-slate-900 dark:text-white leading-snug hover:text-primary">
-                                                {issue.title}
-                                            </Link>
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-black/30 rounded-lg p-1.5">
-                                        <p className="text-xs text-gray-600 dark:text-gray-200 line-clamp-3 font-mono leading-snug">{issue.description}</p>
-                                    </div>
-
-                                    {/* AI Analysis Result Display */}
-                                    {analysisResults[issue.id] && (
-                                        <div className="bg-primary/10 border border-primary/25 rounded-lg p-2 animate-fade-in">
-                                            <div className="flex items-center gap-1 mb-1 text-primary">
-                                                <span className="material-symbols-outlined text-[15px]">smart_toy</span>
-                                                <span className="text-[11px] font-bold uppercase">Gemini Analysis</span>
-                                            </div>
-                                            <p className="text-[11px] text-slate-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{analysisResults[issue.id]}</p>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-4 gap-1.5 mt-0.5">
-                                        <button disabled={isIssueBusy} onClick={() => handleFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
-                                        <button disabled={isIssueBusy} onClick={() => handleOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>   
-                                        <button disabled={isIssueBusy} onClick={() => openBlockPrompt(issue)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</button>
-                                        <button 
-                                            onClick={() => handleAnalyze(issue)} 
-                                            disabled={analyzingIds.has(issue.id)}
-                                            className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-blue-600/10 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-600/20 dark:border-blue-500/25 font-semibold text-[11px] active:scale-95 transition-transform disabled:opacity-50"
-                                        >
-                                            {analyzingIds.has(issue.id) ? (
-                                                <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                                            ) : (
-                                                <span className="material-symbols-outlined text-[18px]">analytics</span>
-                                            )}
-                                            Analyze
-                                        </button>
-                                    </div>
-                                </article>
-                                );
-                            })
+                            issues.map(issue => (
+                                <IssueCard
+                                    key={issue.id}
+                                    issue={issue}
+                                    repoId={repo.id}
+                                    isBusy={issueActionIds.has(issue.id)}
+                                    isAnalyzing={analyzingIds.has(issue.id)}
+                                    analysisResult={analysisResults[issue.id]}
+                                    onFixed={handleFixed}
+                                    onOpen={handleOpen}
+                                    onBlock={openBlockPrompt}
+                                    onAnalyze={handleAnalyze}
+                                />
+                            ))
                         )}
                     </>
                 )}
@@ -1855,7 +1849,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                             <>
                                                 <button 
                                                     disabled={isProcessing}
-                                                    onClick={() => openConflictResolver(pr)} 
+                                                    onClick={() => openConflictResolver(pr)}
                                                     className="flex-1 bg-amber-600/20 text-amber-700 dark:text-amber-500 border border-amber-600/30 font-semibold text-xs py-2 rounded-lg flex items-center justify-center gap-1.5 active:scale-[0.98] disabled:opacity-50"
                                                 >
                                                     {isProcessing ? 'Loading...' : (
@@ -1866,7 +1860,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                                     )}
                                                 </button>
                                                 {isManual && (
-                                                    <a 
+                                                    <a
                                                         href={`https://github.com/${repo.owner}/${repo.name}/pull/${pr.number}/conflicts`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
