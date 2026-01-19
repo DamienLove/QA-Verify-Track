@@ -30,7 +30,7 @@ export const IssueCard = memo(({
     autoFixAvailable
 }: IssueCardProps) => {
     return (
-        <article className="relative flex flex-col gap-1.5 rounded-lg bg-white dark:bg-surface-dark-lighter/80 p-2 shadow-sm border border-gray-100 dark:border-white/10 animate-fade-in">
+        <article className="relative flex flex-col gap-1.5 rounded-lg glass-card p-2 shadow-sm animate-fade-in">
             <div className="flex items-start justify-between gap-2.5">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">

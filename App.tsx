@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation, useSearchParams, Navigate, useParams } from 'react-router-dom';
-import { Repository, AppConfig, Issue, PullRequest, Comment, GlobalSettings, PullRequestFile } from './types';
+import { Repository, AppConfig, Issue, PullRequest, Comment, GlobalSettings, PullRequestFile, Test } from './types';
 import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
@@ -8,6 +8,40 @@ import { themeService, themes } from './services/themeService';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
 import { IssueCard } from './components/IssueCard';
+
+const normalizeCheckedBuilds = (builds?: string[]) => {
+  const normalized = (builds || [])
+    .map((value) => (value ?? '').toString().trim())
+    .filter(Boolean);
+  const unique = Array.from(new Set(normalized));
+  unique.sort((a, b) => {
+    const aNum = parseInt(a, 10);
+    const bNum = parseInt(b, 10);
+    if (Number.isNaN(aNum) && Number.isNaN(bNum)) return a.localeCompare(b);
+    if (Number.isNaN(aNum)) return 1;
+    if (Number.isNaN(bNum)) return -1;
+    return aNum - bNum;
+  });
+  return unique;
+};
+
+const normalizeTest = (test: Test): Test => {
+  const checkedBuilds = normalizeCheckedBuilds(
+    test.checkedBuilds ?? (test.lastCheckedBuild ? [test.lastCheckedBuild] : [])
+  );
+  const lastCheckedBuild = checkedBuilds.length ? checkedBuilds[checkedBuilds.length - 1] : undefined;
+  return { ...test, checkedBuilds, lastCheckedBuild };
+};
+
+const normalizeTests = (tests?: Test[]) => (tests ?? []).map(normalizeTest);
+
+const getCheckedBuilds = (test: Test) =>
+  normalizeCheckedBuilds(test.checkedBuilds ?? (test.lastCheckedBuild ? [test.lastCheckedBuild] : []));
+
+const getLatestCheckedBuild = (test: Test) => {
+  const builds = getCheckedBuilds(test);
+  return builds.length ? builds[builds.length - 1] : undefined;
+};
 
 const normalizeRepos = (repos: Repository[]): Repository[] =>
   repos.map((repo) => ({
@@ -18,7 +52,7 @@ const normalizeRepos = (repos: Repository[]): Repository[] =>
       platform: app.platform || 'android',
       buildNumber: (app.buildNumber ?? '1').toString().trim() || '1',
     })),
-    tests: repo.tests || [],
+    tests: normalizeTests(repo.tests),
   }));
 
 const parseBuildNumber = (value?: string | null) => {
@@ -225,7 +259,7 @@ const HomePage = ({
                     </div>
                 ) : (
                     repos.map(repo => (
-                        <div key={repo.id} className="group flex flex-col gap-0 rounded-xl bg-white dark:bg-[#1a2e1c] shadow-md hover:shadow-lg transition-shadow overflow-hidden border border-gray-100 dark:border-white/5">
+                        <div key={repo.id} className="group flex flex-col gap-0 rounded-xl glass-card shadow-md hover:shadow-lg transition-shadow overflow-hidden">
                             <div className="p-3 flex items-start justify-between">
                                 <div className="flex flex-col gap-0.5">
                                     <div className="flex items-center gap-2 text-gray-400 mb-1">
@@ -247,7 +281,7 @@ const HomePage = ({
                                         <span>PRs: <span className="font-semibold text-slate-900 dark:text-white">{repoStats[repo.id]?.prs ?? '—'}</span></span>
                                     </div>
                                 </div>
-                                <Link to={`/dashboard?repo=${repo.id}`} aria-label="View repository dashboard" className="flex items-center justify-center size-10 rounded-full bg-gray-100 dark:bg-[#253827] text-primary">
+                                <Link to={`/dashboard?repo=${repo.id}`} aria-label="View repository dashboard" className="flex items-center justify-center size-10 rounded-full bg-gray-100 dark:bg-surface-dark-lighter backdrop-blur-sm text-primary">
                                     <span className="material-symbols-outlined">arrow_forward</span>
                                 </Link>
                             </div>
@@ -524,7 +558,7 @@ const ConfigurationPage = ({
                             </button>
                         </div>
                         {repos.map(repo => (
-                            <div key={repo.id} onClick={() => startEdit(repo)} className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">
+                            <div key={repo.id} onClick={() => startEdit(repo)} className="p-4 rounded-xl glass-card flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">
                                 <div>
                                     <h3 className="font-bold text-slate-900 dark:text-white">{repo.displayName || repo.name}</h3>
                                     <p className="text-xs text-gray-500">{repo.owner}/{repo.name}</p>
@@ -714,24 +748,34 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const repoId = searchParams.get('repo');
+    const conflictPrParam = searchParams.get('conflictPr');
     const repo = repos.find(r => r.id === repoId) || repos[0];
 
-    const [tab, setTab] = useState<'issues' | 'prs' | 'tests'>('issues');
+    const [tab, setTab] = useState<'issues' | 'prs' | 'tests'>(conflictPrParam ? 'prs' : 'issues');
     const [activeAppId, setActiveAppId] = useState(repo?.apps[0]?.id || '');
     const [buildNumber, setBuildNumber] = useState(repo?.apps[0]?.buildNumber || '0');
     const activeApp = repo?.apps.find(app => app.id === activeAppId) || repo?.apps[0];
     const activeToken = repo ? resolveGithubToken(repo, globalSettings) : '';
 
     // Test State
-    const [tests, setTests] = useState(repo?.tests || []);
+    const [tests, setTests] = useState(() => normalizeTests(repo?.tests));
     const [generatingTests, setGeneratingTests] = useState(false);
     const [newTestDesc, setNewTestDesc] = useState('');
+    const [pendingConflictPr, setPendingConflictPr] = useState<number | null>(null);
 
     useEffect(() => {
         if (repo) {
-            setTests(repo.tests || []);
+            setTests(normalizeTests(repo.tests));
         }
     }, [repo]);
+
+    useEffect(() => {
+        if (!conflictPrParam) return;
+        const parsed = parseInt(conflictPrParam, 10);
+        if (Number.isNaN(parsed)) return;
+        setPendingConflictPr(parsed);
+        setTab('prs');
+    }, [conflictPrParam]);
 
     useEffect(() => {
         if (!repo?.apps?.length) {
@@ -756,7 +800,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         const updatedApps = repo.apps.map(app =>
             app.id === targetId ? { ...app, buildNumber: value } : app
         );
-        const updatedRepo = { ...repo, apps: updatedApps };
+        const updatedRepo = { ...repo, apps: updatedApps, tests: normalizeTests(tests) };
         const updatedRepos = repos.map(r => (r.id === repo.id ? updatedRepo : r));
         try {
             await firebaseService.saveUserRepos(user.uid, updatedRepos);
@@ -765,14 +809,15 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     };
 
-    const handleSaveTests = async (updatedTests: any[]) => {
+    const handleSaveTests = async (updatedTests: Test[]) => {
         if (!repo) return;
-        const updatedRepo = { ...repo, tests: updatedTests };
+        const normalizedTests = normalizeTests(updatedTests);
+        const updatedRepo = { ...repo, tests: normalizedTests };
         const updatedRepos = repos.map(r => r.id === repo.id ? updatedRepo : r);
 
         // Save to Firebase
         try {
-            await firebaseService.saveUserRepos(auth.currentUser!.uid, updatedRepos);
+            await firebaseService.saveUserRepos(user.uid, updatedRepos);
         } catch (e) {
             console.error("Failed to save tests", e);
         }
@@ -785,9 +830,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             const newTests = generated.map(t => ({
                 id: Date.now().toString() + Math.random().toString().slice(2),
                 description: t,
-                lastCheckedBuild: undefined
+                checkedBuilds: []
             }));
-            const updatedTests = [...tests, ...newTests];
+            const updatedTests = normalizeTests([...tests, ...newTests]);
             setTests(updatedTests);
             await handleSaveTests(updatedTests);
         } finally {
@@ -800,9 +845,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         const newTest = {
             id: Date.now().toString(),
             description: newTestDesc,
-            lastCheckedBuild: undefined
+            checkedBuilds: []
         };
-        const updatedTests = [...tests, newTest];
+        const updatedTests = normalizeTests([...tests, newTest]);
         setTests(updatedTests);
         setNewTestDesc('');
         await handleSaveTests(updatedTests);
@@ -818,14 +863,22 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     };
 
     const toggleTest = async (testId: string) => {
+        const activeBuild = (buildNumber || '').toString().trim();
+        if (!activeBuild) return;
         const updatedTests = tests.map(t => {
-            if (t.id === testId) {
-                // If currently checked (matches build), uncheck it (undefined or old build).
-                // If unchecked, check it (set to current build).
-                const isChecked = t.lastCheckedBuild === buildNumber;
-                return { ...t, lastCheckedBuild: isChecked ? undefined : buildNumber };
+            if (t.id !== testId) return t;
+            const buildSet = new Set(getCheckedBuilds(t));
+            if (buildSet.has(activeBuild)) {
+                buildSet.delete(activeBuild);
+            } else {
+                buildSet.add(activeBuild);
             }
-            return t;
+            const nextBuilds = normalizeCheckedBuilds(Array.from(buildSet));
+            return {
+                ...t,
+                checkedBuilds: nextBuilds,
+                lastCheckedBuild: nextBuilds.length ? nextBuilds[nextBuilds.length - 1] : undefined
+            };
         });
         setTests(updatedTests);
         await handleSaveTests(updatedTests);
@@ -942,7 +995,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             );
 
             const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]*(?:build\s*)?v?\s*(\d+)\b/gi;
-            const verifyFixRegex = /\bverify\s*fix\b[^\d]*v?\s*(\d+)\b/gi;
+            const verifyFixRegex = /\bverify\s*fix(?:es)?\b[^\d]*v?\s*(\d+)\b/gi;
             const statusBuildMap: Record<number, number> = {};
             const verifyFixBuildMap: Record<number, number> = {};
 
@@ -1350,6 +1403,20 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     };
 
+    useEffect(() => {
+        if (!pendingConflictPr || loading || !repo) return;
+        const target = prs.find(pr => pr.number === pendingConflictPr);
+        if (target) {
+            setPendingConflictPr(null);
+            openConflictResolver(target);
+            return;
+        }
+        if (prs.length > 0) {
+            setPrError(`PR #${pendingConflictPr} not found in list.`);
+            setPendingConflictPr(null);
+        }
+    }, [pendingConflictPr, prs, loading, repo?.id]);
+
     const closeConflictResolver = () => {
         setConflictPr(null);
         setConflictFiles([]);
@@ -1729,7 +1796,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                             href={repo ? `https://github.com/${repo.owner}/${repo.name}/projects` : '#'}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-[#253827] px-2.5 py-1.5 text-[10px] sm:text-[11px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors whitespace-nowrap"
+                            className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-surface-dark-lighter backdrop-blur-sm px-2.5 py-1.5 text-[10px] sm:text-[11px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors whitespace-nowrap"
                         >
                             <span className="material-symbols-outlined text-[14px]">dashboard</span>
                             Projects
@@ -1749,12 +1816,12 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
+                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
                                     aria-label="Sync with GitHub"
-                                    className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
+                                    className="bg-white dark:bg-surface-dark-lighter backdrop-blur-sm border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
                                 >
                                     <span className="material-symbols-outlined">sync</span>
                                     <span className="text-xs font-bold hidden sm:inline">Sync</span>
@@ -1762,7 +1829,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                 <button
                                     onClick={() => handleSync(true)}
                                     aria-label="Sync with Store"
-                                    className="bg-white dark:bg-[#253827] border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
+                                    className="bg-white dark:bg-surface-dark-lighter backdrop-blur-sm border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
                                 >
                                     <span className="material-symbols-outlined">system_update_alt</span>
                                     <span className="text-xs font-bold hidden sm:inline">Store</span>
@@ -1775,7 +1842,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                          <select
                              value={activeApp?.id || ''}
                              onChange={(e) => setActiveAppId(e.target.value)}
-                             className="w-full bg-white dark:bg-[#1c2e1f] border-gray-200 dark:border-white/5 rounded-lg h-[54px] px-3 font-medium text-sm text-slate-900 dark:text-white focus:ring-primary focus:border-primary"
+                             className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg h-[54px] px-3 font-medium text-sm text-slate-900 dark:text-white focus:ring-primary focus:border-primary"
                          >
                              {repo?.apps.map(app => (
                                  <option key={app.id} value={app.id}>
@@ -1793,7 +1860,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                          </div>
                          <button
                              onClick={() => setTab('tests')}
-                             className="rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-[#253827] px-2.5 py-1.5 text-[10px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors"
+                             className="rounded-lg border border-gray-200 dark:border-white/10 bg-white/70 dark:bg-surface-dark-lighter backdrop-blur-sm px-2.5 py-1.5 text-[10px] font-bold text-gray-700 dark:text-gray-200 hover:text-primary transition-colors"
                          >
                              Open Tests
                          </button>
@@ -1909,7 +1976,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                              const isManual = manualResolveIds.has(pr.id);
 
                              return (
-                                <div key={pr.id} className="group relative bg-white dark:bg-[#1A1616] rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm transition-all animate-fade-in">
+                                <div key={pr.id} className="group relative bg-white dark:bg-surface-dark backdrop-blur-md rounded-xl p-3 border border-gray-200 dark:border-white/10 shadow-sm transition-all animate-fade-in">
                                     <div className="flex items-start gap-3 mb-1.5">
                                         <input
                                             type="checkbox"
@@ -2032,7 +2099,10 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                 </div>
                             ) : (
                                 tests.map(test => {
-                                    const isChecked = test.lastCheckedBuild === buildNumber;
+                                    const activeBuild = (buildNumber || '').toString().trim();
+                                    const checkedBuilds = getCheckedBuilds(test);
+                                    const isChecked = activeBuild ? checkedBuilds.includes(activeBuild) : false;
+                                    const latestChecked = getLatestCheckedBuild(test);
                                     return (
                                         <div key={test.id} onClick={() => toggleTest(test.id)} className={`group cursor-pointer flex items-start gap-2 p-2 rounded-xl border transition-all ${isChecked ? 'bg-primary/5 border-primary/20' : 'bg-white dark:bg-surface-dark-lighter border-gray-200 dark:border-white/5 hover:border-primary/30'}`}>
                                             <div className={`mt-0.5 flex-shrink-0 size-5 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-black' : 'bg-transparent border-gray-400 dark:border-gray-500 group-hover:border-primary'}`}>
@@ -2040,8 +2110,8 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                             </div>
                                             <div className="flex-1">
                                                 <p className={`text-sm ${isChecked ? 'text-gray-500 line-through' : 'text-slate-900 dark:text-white'}`}>{test.description}</p>
-                                                {test.lastCheckedBuild && !isChecked && (
-                                                    <p className="text-[10px] text-gray-400 mt-1">Last checked on build #{test.lastCheckedBuild}</p>
+                                                {latestChecked && !isChecked && (
+                                                    <p className="text-[10px] text-gray-400 mt-1">Last checked on build #{latestChecked}</p>
                                                 )}
                                             </div>
                                         </div>

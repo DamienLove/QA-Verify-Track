@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #12d622;
+    --color-primary-hover: #0fa61c;
+    --color-background-light: #e8efe8;
+    --color-background-dark: #0b1b0f;
+    --color-surface-dark: #0f1f12;
+    --color-surface-dark-lighter: #132618;
+    --color-input-dark: #152b1a;
+  }
+
+  html,
+  body {
+    min-height: 100%;
+    background-color: var(--color-background-light);
+    color: #0f172a;
+  }
+
+  body {
+    min-height: 100vh;
+    overscroll-behavior-y: none;
+  }
+
+  html.dark,
+  html.dark body {
+    background-color: var(--color-background-dark);
+    color: #ffffff;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 dark:bg-black/30 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-[0_10px_30px_rgba(15,23,42,0.12)];
+  }
+
+  .glass-tile {
+    @apply bg-white/60 dark:bg-black/30 backdrop-blur-lg border border-white/40 dark:border-white/10;
+  }
+}
+
+/* Hide Scrollbar but allow scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
