@@ -36,8 +36,8 @@ android {
         applicationId = "com.qa.verifyandtrack.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 20
-        versionName = "20"
+        versionCode = 21
+        versionName = "21"
         val geminiKey = localProps.getProperty("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
 

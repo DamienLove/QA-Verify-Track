@@ -32,6 +32,7 @@ export interface Test {
   id: string;
   description: string;
   lastCheckedBuild?: string; // The build number it was last verified on
+  checkedBuilds?: string[]; // Build numbers verified for this test
 }
 
 export interface Issue {

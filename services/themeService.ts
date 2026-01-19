@@ -20,10 +20,10 @@ export const themes: Theme[] = [
             primary: '#12d622',
             primaryHover: '#0fa61c',
             backgroundLight: '#e8efe8',
-            backgroundDark: '#0b1b0f',
-            surfaceDark: '#0f1f12',
-            surfaceDarkLighter: '#132618',
-            inputDark: '#152b1a',
+            backgroundDark: '#0b1b0fe6',
+            surfaceDark: '#0f1f12cc',
+            surfaceDarkLighter: '#132618cc',
+            inputDark: '#152b1acc',
         }
     },
     {

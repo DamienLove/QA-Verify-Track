@@ -1,32 +1,90 @@
-# Download Latest APK
+# QA Verify & Track
 
- [![Publish Debug APK](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml/badge.svg?branch=main)](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml) [Download Alpha](https://github.com/DamienLove/QA-Verify-Track/releases/download/Alpha/app-debug.apk)
+[![Android CI](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml/badge.svg?branch=main)](https://github.com/DamienLove/QA-Verify-Track/actions/workflows/android_release.yml)
 
-## QA Verify & Track — Web + Android
+**QA Verify & Track** is a cross-platform QA assistant designed to streamline the testing workflow for developers and QA engineers. It bridges the gap between GitHub issues/PRs and specific application build numbers, ensuring you are verifying the right fixes on the right build.
 
-### Prereqs
-- Node.js 18+ (for Vite web app)
-- Java 17, Android SDK Platform 34 (for Android)
-- Firebase project with Auth + Hosting enabled
+## 🚀 Key Features
 
-### Web (Vite)
-1. Install deps: `npm install`
-2. Copy `.env.example` → `.env.local` and paste your Firebase web config keys (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId, measurementId).
-3. Dev server: `npm run dev` (default http://localhost:3000).
-4. Build: `npm run build`
-5. Deploy to Firebase Hosting: `npm run deploy:hosting` (after `npx firebase login`). Hosting is configured for site `qa-verify-and-ttack`.
+*   **Build-Aware Issue Tracking:** Automatically filters out issues that were fixed in previous builds. If an issue is marked `fixed v100` and you are testing `v101`, it won't clutter your view.
+*   **GitHub Integration:**
+    *   **Dashboard:** View Issues and Pull Requests for your configured repositories.
+    *   **Actions:** Close, Reopen, and Block issues directly from the UI.
+    *   **PR Management:** View PRs, Approve, Merge, and even **resolve file conflicts** directly in the web interface.
+*   **AI-Powered Assistance (Gemini):**
+    *   **Issue Analysis:** Get AI summaries of bugs, including potential root causes, verification steps, and severity assessments.
+    *   **Test Generation:** Automatically generate checklist-style test cases for your app features.
+*   **Cross-Platform:**
+    *   **Web App:** Full-featured React dashboard.
+    *   **Android App:** Manage QA from your device (Jetpack Compose).
+    *   **Android Studio Plugin:** Integration for developers (Preview).
+*   **Secure & Sync:** Uses Firebase Auth and Firestore to sync your settings and repository configurations across devices.
 
-#### Auth allowed domains
-- `localhost`, `127.0.0.1`
-- `qa-verify-and-ttack.firebaseapp.com`
-- `qa-verify-and-ttack.web.app`
-- Any custom domain you map
+## 🛠️ Prerequisites
 
-### Android (Jetpack Compose)
-1. Open `androidApp/` in Android Studio, or run `cd androidApp && ./gradlew assembleDebug`.
-2. Ensure `androidApp/app/google-services.json` matches your Firebase Android app and that its SHA-1/256 are registered in Firebase.
-3. Debug APK: `androidApp/app/build/outputs/apk/debug/app-debug.apk`.
-4. For release: create a release keystore, add its SHA-1/256 to Firebase, set signingConfig, then `./gradlew assembleRelease`.
+*   **Node.js 18+** (for the Web App)
+*   **Java 17** & **Android SDK 34** (for Android App)
+*   **Firebase Project:** You need a Firebase project with **Authentication** (Google & Email/Password) and **Firestore** enabled.
+*   **GitHub Personal Access Token (PAT):** Required to interact with your repositories (needs `repo` scope).
+*   **(Optional) Google Gemini API Key:** For AI features.
 
-### GitHub token
-Users supply their own PAT with `repo` scope inside the app to access repos/issues/PRs.
+## 💻 Web App Setup (Vite + React)
+
+1.  **Install Dependencies:**
+    ```bash
+    npm install
+    ```
+
+2.  **Environment Configuration:**
+    Copy `.env.example` to `.env.local` and fill in your keys:
+    ```ini
+    # Firebase Web Configuration
+    VITE_FIREBASE_API_KEY=...
+    VITE_FIREBASE_AUTH_DOMAIN=...
+    VITE_FIREBASE_PROJECT_ID=...
+    VITE_FIREBASE_STORAGE_BUCKET=...
+    VITE_FIREBASE_MESSAGING_SENDER_ID=...
+    VITE_FIREBASE_APP_ID=...
+    VITE_FIREBASE_MEASUREMENT_ID=...
+
+    # AI Features (Optional)
+    VITE_GEMINI_API_KEY=your_gemini_api_key
+    ```
+
+3.  **Run Locally:**
+    ```bash
+    npm run dev
+    ```
+    Access the app at `http://localhost:5173` (or the port shown in terminal).
+
+4.  **Build & Deploy:**
+    ```bash
+    npm run build
+    npm run deploy:hosting
+    ```
+
+## 📱 Android App Setup
+
+1.  Open the `androidApp` directory in Android Studio.
+2.  Place your `google-services.json` (from Firebase Console) into `androidApp/app/`.
+3.  Build and Run:
+    ```bash
+    cd androidApp
+    ./gradlew assembleDebug
+    ```
+
+## 🧠 AI Features
+
+QA Verify & Track uses Google's Gemini models to enhance your workflow:
+*   **Analyze Bug:** Click the "Analyze" chip on any issue card to get a smart summary.
+*   **Generate Tests:** In the "Tests" tab, provide a description of your feature to generate a verification checklist.
+
+## 🤝 Contribution
+
+1.  Fork the repository.
+2.  Create a feature branch.
+3.  Submit a Pull Request.
+
+## 📄 License
+
+[MIT](LICENSE)

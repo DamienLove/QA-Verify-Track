@@ -36,11 +36,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.net.Uri
 import androidx.navigation.NavHostController
 import com.qa.verifyandtrack.app.data.model.Comment
 import com.qa.verifyandtrack.app.data.model.PullRequestDetail
 import com.qa.verifyandtrack.app.data.model.PullRequestFile
 import com.qa.verifyandtrack.app.ui.components.LoadingIndicator
+import com.qa.verifyandtrack.app.ui.navigation.Screen
 import com.qa.verifyandtrack.app.ui.theme.Spacing
 import com.qa.verifyandtrack.app.ui.viewmodel.PullRequestDetailViewModel
 
@@ -110,6 +112,9 @@ fun PullRequestDetailScreen(
                 }
             }
             else -> {
+                val detail = pullRequest!!
+                val mergeableState = detail.mergeableState?.lowercase().orEmpty()
+                val hasConflicts = detail.mergeable == false || mergeableState == "dirty" || mergeableState == "conflicting"
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -118,7 +123,21 @@ fun PullRequestDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.Default)
                 ) {
                     item {
-                        PullRequestSummaryCard(pullRequest!!)
+                        PullRequestSummaryCard(detail)
+                    }
+
+                    if (hasConflicts && !repoId.isNullOrBlank() && pullNumber != null) {
+                        item {
+                            Button(
+                                onClick = {
+                                    val url = "$QAVT_WEB_DASHBOARD_URL?repo=${Uri.encode(repoId)}&conflictPr=$pullNumber"
+                                    navController.navigate(Screen.ProjectWebView.createRoute(url))
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Resolve Conflicts")
+                            }
+                        }
                     }
 
                     item {
@@ -257,3 +276,5 @@ private fun CommentCard(comment: Comment) {
         }
     }
 }
+
+private const val QAVT_WEB_DASHBOARD_URL = "https://qa-verify-and-ttack.web.app/#/dashboard"

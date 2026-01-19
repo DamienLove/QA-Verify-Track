@@ -195,14 +195,7 @@ if ($commitChanges -ne "false") {
 }
 
 $publishAndroid = $env:QAVT_PUBLISH_ANDROID
-if ($publishAndroid -eq "false") {
-    Write-Host "Skipping Play Store publish. Set QAVT_PUBLISH_ANDROID=true to enable."
-} else {
-    $gradleDir = Resolve-Path (Join-Path $repoRoot "androidApp")
-    $gradlew = Join-Path $gradleDir "gradlew.bat"
-    if (-not (Test-Path $gradlew)) {
-        $gradlew = Join-Path $gradleDir "gradlew"
-    }
+
 # 2. Increment Android Version
 $newVersion = Increment-AndroidVersion
 
@@ -212,57 +205,33 @@ if (-not $newVersion) {
 }
 
 # 3. Build and Publish Android App
-$gradleDir = Join-Path $PSScriptRoot "..\androidApp"
-if (Test-Path $gradleDir) {
-    $gradleDir = Resolve-Path $gradleDir
-    $gradlew = Join-Path $gradleDir "gradlew.bat"
-    if (-not (Test-Path $gradlew)) {
-        $gradlew = Join-Path $gradleDir "gradlew"
-    }
-
-    Write-Host "Publishing Android App (v$newVersion)..."
-    Push-Location $gradleDir
-    try {
-        & $gradlew ":app:publishProdReleaseBundle"
-
-        if ($env:QAVT_PROMOTE_TRACKS -eq "true") {
-            Write-Host "Promoting to closed, open, and production tracks..."
-            & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "internal" "--to-track" "closed"
-            & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "closed" "--to-track" "open"
-            & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "open" "--to-track" "production"
-        }} finally {
-        Pop-Location
-    }
+if ($publishAndroid -eq "false") {
+    Write-Host "Skipping Play Store publish. Set QAVT_PUBLISH_ANDROID=true to enable."
 } else {
-            Write-Warning "AndroidApp directory not found at $gradleDir"
-}
-
-# 4. Build and Deploy Web App
-Write-Host "Building and Deploying Web App..."
-$webDir = Resolve-Path (Join-Path $PSScriptRoot "..")
-Push-Location $webDir
-try {
-    # Check for pnpm
-    if (Get-Command "pnpm" -ErrorAction SilentlyContinue) {
-        Write-Host "Using pnpm..."
-        cmd /c pnpm install
-        cmd /c pnpm build
-    } elseif (Get-Command "npm" -ErrorAction SilentlyContinue) {
-        Write-Host "Using npm..."
-        cmd /c npm install
-        cmd /c npm run build
-    } else {
-        Write-Error "Neither pnpm nor npm found."
-    }
-
-    if (Get-Command "firebase" -ErrorAction SilentlyContinue) {
-        Write-Host "Deploying to Firebase Hosting..."
-        cmd /c firebase deploy --only hosting
-    } else {
-        Write-Warning "Firebase CLI not found. Skipping deployment."
+    $gradleDir = Join-Path $PSScriptRoot "..\androidApp"
+    if (Test-Path $gradleDir) {
+        $gradleDir = Resolve-Path $gradleDir
+        $gradlew = Join-Path $gradleDir "gradlew.bat"
+        if (-not (Test-Path $gradlew)) {
+            $gradlew = Join-Path $gradleDir "gradlew"
         }
-    } finally {
-        Pop-Location
+
+        Write-Host "Publishing Android App (v$newVersion)..."
+        Push-Location $gradleDir
+        try {
+            & $gradlew ":app:publishProdReleaseBundle"
+
+            if ($env:QAVT_PROMOTE_TRACKS -eq "true") {
+                Write-Host "Promoting to closed, open, and production tracks..."
+                & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "internal" "--to-track" "closed"
+                & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "closed" "--to-track" "open"
+                & $gradlew ":app:promoteProdReleaseArtifact" "--from-track" "open" "--to-track" "production"
+            }
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Warning "AndroidApp directory not found at $gradleDir"
     }
 }
 
@@ -309,7 +278,7 @@ if (Test-Path $pluginDir) {
 }
 
 # 6. Post Comment
-$commentBody = "verify fix v$newVersion"
+$commentBody = "verify fixes $newVersion"
 Write-Host "Posting comment: $commentBody"
 Post-GitHubComment -Token $GithubToken -Owner $RepoOwner -Repo $RepoName -Issue $IssueNumber -Body $commentBody
 
