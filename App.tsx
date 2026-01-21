@@ -757,6 +757,16 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const activeApp = repo?.apps.find(app => app.id === activeAppId) || repo?.apps[0];
     const activeToken = repo ? resolveGithubToken(repo, globalSettings) : '';
 
+    // Performance optimization: Use refs for frequent updates to prevent re-creating callbacks
+    // This prevents the entire issue list from re-rendering on every keystroke in the build number input
+    const buildNumberRef = useRef(buildNumber);
+    const repoRef = useRef(repo);
+
+    useEffect(() => {
+        buildNumberRef.current = buildNumber;
+        repoRef.current = repo;
+    }, [buildNumber, repo]);
+
     // Test State
     const [tests, setTests] = useState(() => normalizeTests(repo?.tests));
     const [generatingTests, setGeneratingTests] = useState(false);
@@ -1082,7 +1092,8 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const handleFixed = React.useCallback(async (id: number, number: number) => {
         setIssueActionError('');
         startIssueAction(id);
-        const buildTag = (buildNumber || '').trim();
+        const currentBuild = buildNumberRef.current;
+        const buildTag = (currentBuild || '').trim();
         const status = buildTag ? `fixed v${buildTag}` : 'fixed';
         let closed = false;
         let commentFailed = false;
@@ -1113,12 +1124,13 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             }
             endIssueAction(id);
         }
-    }, [buildNumber, repo.owner, repo.name, startIssueAction, endIssueAction]);
+    }, [repo.owner, repo.name, startIssueAction, endIssueAction]);
 
     const handleOpen = React.useCallback(async (id: number, number: number) => {
         setIssueActionError('');
         startIssueAction(id);
-        const buildTag = (buildNumber || '').trim();
+        const currentBuild = buildNumberRef.current;
+        const buildTag = (currentBuild || '').trim();
         const status = buildTag ? `open v${buildTag}` : 'open';
         let commentFailed = false;
         let reopened = false;
@@ -1135,7 +1147,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             console.error('Failed to mark issue open', e);
         } finally {
             if (reopened) {
-                const targetBuild = parseBuildNumber(buildNumber);
+                const targetBuild = parseBuildNumber(currentBuild);
                 if (targetBuild != null) {
                     setIssueBuildMap(prev => {
                         const current = prev[id] ?? -1;
@@ -1150,7 +1162,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             }
             endIssueAction(id);
         }
-    }, [buildNumber, repo.owner, repo.name, startIssueAction, endIssueAction]);
+    }, [repo.owner, repo.name, startIssueAction, endIssueAction]);
 
     const openBlockPrompt = React.useCallback((issue: Issue) => {
         setBlockIssue(issue);
@@ -1221,15 +1233,23 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         const confirmFix = window.confirm(`Auto Fix issue #${issue.number}? This will trigger AI agent and publish a new build.`);
         if (!confirmFix) return;
 
+        const currentRepo = repoRef.current;
+        const currentBuild = buildNumberRef.current;
+
+        if (!currentRepo) {
+             alert("Repo information is missing.");
+             return;
+        }
+
         try {
             const payload = new URLSearchParams({
-                repoId: repo.id,
-                repoOwner: repo.owner,
-                repoName: repo.name,
+                repoId: currentRepo.id,
+                repoOwner: currentRepo.owner,
+                repoName: currentRepo.name,
                 issueNumber: issue.number.toString(),
                 title: issue.title,
                 description: issue.description || '',
-                buildNumber: buildNumber,
+                buildNumber: currentBuild,
                 githubToken: activeToken
             }).toString();
             (window as any).QAVT_AUTO_FIX.issueCreated(payload);
@@ -1237,7 +1257,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             console.error('Failed to trigger auto fix', e);
             alert("Failed to trigger auto fix.");
         }
-    }, [repo, activeToken, buildNumber]);
+    }, [activeToken]);
 
     const toggleSelectAllPrs = () => {
         if (allPrsSelected) {
