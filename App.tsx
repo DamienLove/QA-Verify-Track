@@ -977,23 +977,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 githubService.getPullRequests(repo.owner, repo.name)
             ]);
 
-            const prsWithConflicts = await Promise.all(
-                fetchedPrs.map(async (pr) => {
-                    try {
-                        const details = await githubService.getPullRequest(repo.owner, repo.name, pr.number);
-                        const mergeableState = (details.mergeable_state || '').toLowerCase();
-                        const hasConflicts =
-                            details.mergeable === false ||
-                            mergeableState === 'dirty' ||
-                            mergeableState === 'conflicting';
-                        return { ...pr, hasConflicts };
-                    } catch (e) {
-                        console.warn('Failed to resolve conflict state for PR', pr.number, e);
-                        return pr;
-                    }
-                })
-            );
-
             const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]*(?:build\s*)?v?\s*(\d+)\b/gi;
             const verifyFixRegex = /\bverify\s*fix(?:es)?\b[^\d]*v?\s*(\d+)\b/gi;
             const statusBuildMap: Record<number, number> = {};
@@ -1039,7 +1022,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             setAllIssues(fetchedIssues);
             setIssueBuildMap(statusBuildMap);
             setIssueVerifyFixMap(verifyFixBuildMap);
-            setPrs(prsWithConflicts);
+            setPrs(fetchedPrs);
         } catch (error) {
             console.error("Sync failed", error);
             setSyncError('Failed to sync GitHub data. Check your token and network.');
