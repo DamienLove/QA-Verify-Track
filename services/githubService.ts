@@ -162,30 +162,79 @@ export const githubService = {
     const api = await getOctokit(token);
 
     try {
-      const response = await api.paginate(api.pulls.list, {
-        owner,
-        repo,
-        state: 'open',
-        sort: 'updated',
-        direction: 'desc',
-        per_page: 100
-      });
+      const allPrs: PullRequest[] = [];
+      let hasNextPage = true;
+      let cursor: string | null = null;
+      let loopCount = 0;
+      const MAX_LOOPS = 20; // Safety limit for pagination
 
-      return response.map((pr: any) => ({
-        id: pr.id,
-        number: pr.number,
-        title: pr.title,
-        branch: pr.head.ref,
-        targetBranch: pr.base.ref,
-        author: {
-          name: pr.user.login,
-          avatar: pr.user.avatar_url
-        },
-        hasConflicts: false, // Default, client updates this via detailed check if needed
-        isDraft: pr.draft,
-        status: pr.draft ? 'draft' : 'open',
-        filesChanged: 0
-      }));
+      while (hasNextPage && loopCount < MAX_LOOPS) {
+        loopCount++;
+        const response: any = await api.request('POST /graphql', {
+          query: `
+            query ($owner: String!, $repo: String!, $cursor: String) {
+              repository(owner: $owner, name: $repo) {
+                pullRequests(first: 100, states: OPEN, orderBy: {field: UPDATED_AT, direction: DESC}, after: $cursor) {
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                  nodes {
+                    databaseId
+                    number
+                    title
+                    headRefName
+                    baseRefName
+                    author {
+                      login
+                      avatarUrl
+                    }
+                    isDraft
+                    mergeable
+                    changedFiles
+                  }
+                }
+              }
+            }
+          `,
+          variables: {
+            owner,
+            repo,
+            cursor
+          }
+        });
+
+        if (response.data.errors) {
+          console.error("GraphQL Errors while fetching PRs:", response.data.errors);
+          if (!response.data.data) break;
+        }
+
+        const data = response.data.data?.repository?.pullRequests;
+        if (!data) break;
+
+        const mapped = data.nodes.map((pr: any) => ({
+          id: pr.databaseId,
+          number: pr.number,
+          title: pr.title,
+          branch: pr.headRefName,
+          targetBranch: pr.baseRefName,
+          author: {
+            name: pr.author?.login || 'Unknown',
+            avatar: pr.author?.avatarUrl || ''
+          },
+          hasConflicts: pr.mergeable === 'CONFLICTING',
+          isDraft: pr.isDraft,
+          status: pr.isDraft ? 'draft' : 'open',
+          filesChanged: pr.changedFiles
+        }));
+
+        allPrs.push(...mapped);
+
+        hasNextPage = data.pageInfo.hasNextPage;
+        cursor = data.pageInfo.endCursor;
+      }
+
+      return allPrs;
     } catch (e) {
       console.error("Failed to fetch PRs", e);
       return [];
