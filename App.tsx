@@ -803,7 +803,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     }, [activeApp?.id, activeApp?.buildNumber]);
 
-    const persistBuildNumber = async (value: string, appId?: string) => {
+    const persistBuildNumber = React.useCallback(async (value: string, appId?: string) => {
         if (!repo) return;
         const targetId = appId || activeApp?.id;
         if (!targetId) return;
@@ -817,7 +817,21 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         } catch (e) {
             console.error("Failed to save build number", e);
         }
-    };
+    }, [repo, activeApp?.id, tests, repos, user.uid]);
+
+    // Debounce build number persistence to prevent Firebase write spam
+    useEffect(() => {
+        const value = (buildNumber || '').trim();
+        // Avoid saving if the value matches what we already have (e.g. on load/switch)
+        const currentStored = (activeApp?.buildNumber || '').trim();
+        if (value === currentStored) return;
+
+        const timer = setTimeout(() => {
+            persistBuildNumber(value);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [buildNumber, activeApp?.buildNumber, persistBuildNumber]);
 
     const handleSaveTests = async (updatedTests: Test[]) => {
         if (!repo) return;
@@ -868,7 +882,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         setTab('tests');
         if (app.buildNumber) {
             setBuildNumber(app.buildNumber);
-            persistBuildNumber(app.buildNumber, app.id);
         }
     };
 
@@ -1819,7 +1832,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
+                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => setBuildNumber(e.target.value)}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
