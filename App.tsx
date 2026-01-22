@@ -660,16 +660,19 @@ const ConfigurationPage = ({
                     <div className="space-y-3">
                         <div className="space-y-1">
                             <label htmlFor="repo-display-name" className="text-xs text-gray-500">Display Name</label>
-                            <input id="repo-display-name" value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" autoFocus />
+                            {/* SECURITY: Enforce length limit to prevent potential DoS */}
+                            <input id="repo-display-name" value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" maxLength={100} className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" autoFocus />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                                 <label htmlFor="repo-owner" className="text-xs text-gray-500">Owner</label>
-                                <input id="repo-owner" value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" placeholder="org" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                {/* SECURITY: Enforce length limit (GitHub username max 39 chars) */}
+                                <input id="repo-owner" value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" maxLength={39} placeholder="org" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                             <div className="space-y-1">
                                 <label htmlFor="repo-name" className="text-xs text-gray-500">Repo Name</label>
-                                <input id="repo-name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                {/* SECURITY: Enforce length limit (GitHub repo name max 100 chars) */}
+                                <input id="repo-name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" maxLength={100} placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -686,7 +689,8 @@ const ConfigurationPage = ({
                             {useCustomToken ? (
                                 <>
                                     <label htmlFor="repo-token" className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
-                                    <input id="repo-token" value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                    {/* SECURITY: Enforce length limit to prevent large payload injection */}
+                                    <input id="repo-token" value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" maxLength={512} placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                                     <p className="text-[10px] text-gray-500">Used for reading/writing to this repository.</p>
                                 </>
                             ) : (
@@ -2703,11 +2707,13 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                       </div>
                       <div className="space-y-1">
                           <label htmlFor="quick-issue-title" className="text-xs uppercase font-bold text-gray-500">Title</label>
-                          <input id="quick-issue-title" value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg focus:ring-primary focus:border-primary" placeholder="Title" autoFocus required />
+                          {/* SECURITY: Enforce length limit (GitHub issue title max 256 chars) */}
+                          <input id="quick-issue-title" value={title} onChange={e=>setTitle(e.target.value)} maxLength={256} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg focus:ring-primary focus:border-primary" placeholder="Title" autoFocus required />
                       </div>
                       <div className="space-y-1">
                           <label htmlFor="quick-issue-desc" className="text-xs uppercase font-bold text-gray-500">Description</label>
-                          <textarea id="quick-issue-desc" value={desc} onChange={e=>setDesc(e.target.value)} className="w-full bg-input-dark rounded-xl p-4 text-white min-h-[200px] focus:ring-primary focus:border-primary" placeholder="Description"></textarea>
+                          {/* SECURITY: Enforce length limit (GitHub issue body max 65536 chars) */}
+                          <textarea id="quick-issue-desc" value={desc} onChange={e=>setDesc(e.target.value)} maxLength={65536} className="w-full bg-input-dark rounded-xl p-4 text-white min-h-[200px] focus:ring-primary focus:border-primary" placeholder="Description"></textarea>
                       </div>
                       <button type="submit" disabled={!title || isSubmitting} className="w-full bg-primary h-14 rounded-xl font-bold text-black disabled:opacity-50">{isSubmitting ? 'Submitting...' : 'Submit'}</button>
                  </form>
