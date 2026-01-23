@@ -72,28 +72,40 @@ const resolveGithubToken = (repo: Repository, globalSettings?: GlobalSettings) =
 
 // --- Shared UI Components ---
 
-const BottomNav = ({ onNotesClick }: { onNotesClick: () => void }) => (
-  <nav className="fixed bottom-0 left-0 w-full bg-background-light/80 dark:bg-background-dark/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/10 z-50 pb-safe">
-    <div className="flex items-center justify-around h-16 max-w-md mx-auto">
-        <Link to="/" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-primary group">
-            <span className="material-symbols-outlined text-[24px]">grid_view</span>
-            <span className="text-[10px] font-bold">Projects</span>
-        </Link>
-        <button
-            onClick={onNotesClick}
-            className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            aria-label="Open Notes"
-        >
-            <span className="material-symbols-outlined text-[24px]">description</span>
-            <span className="text-[10px] font-medium">Notes</span>
-        </button>
-        <Link to="/config" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-            <span className="material-symbols-outlined text-[24px]">settings</span>
-            <span className="text-[10px] font-medium">Config</span>
-        </Link>
-    </div>
-  </nav>
-);
+const BottomNav = ({ onNotesClick }: { onNotesClick: () => void }) => {
+  const location = useLocation();
+  const isConfig = location.pathname.startsWith('/config');
+  const isProjects = !isConfig && (
+      location.pathname === '/' ||
+      location.pathname.startsWith('/dashboard') ||
+      location.pathname.startsWith('/issue')
+  );
+
+  const getLinkClass = (isActive: boolean) => `flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`;
+
+  return (
+    <nav className="fixed bottom-0 left-0 w-full bg-background-light/80 dark:bg-background-dark/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/10 z-50 pb-safe">
+      <div className="flex items-center justify-around h-16 max-w-md mx-auto">
+          <Link to="/" className={getLinkClass(isProjects)}>
+              <span className="material-symbols-outlined text-[24px]">grid_view</span>
+              <span className="text-[10px] font-bold">Projects</span>
+          </Link>
+          <button
+              onClick={onNotesClick}
+              className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              aria-label="Open Notes"
+          >
+              <span className="material-symbols-outlined text-[24px]">description</span>
+              <span className="text-[10px] font-medium">Notes</span>
+          </button>
+          <Link to="/config" className={getLinkClass(isConfig)}>
+              <span className="material-symbols-outlined text-[24px]">settings</span>
+              <span className="text-[10px] font-medium">Config</span>
+          </Link>
+      </div>
+    </nav>
+  );
+};
 
 // --- Auth Page ---
 const LoginPage = () => {
@@ -300,13 +312,15 @@ const ConfigurationPage = ({
     setRepos,
     user,
     globalSettings,
-    setGlobalSettings
+    setGlobalSettings,
+    onNotesClick
 }: {
     repos: Repository[],
     setRepos: React.Dispatch<React.SetStateAction<Repository[]>>,
     user: User,
     globalSettings: GlobalSettings,
-    setGlobalSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>
+    setGlobalSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>,
+    onNotesClick: () => void
 }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -495,7 +509,7 @@ const ConfigurationPage = ({
 
     if (view === 'list') {
         return (
-            <div className="bg-background-light dark:bg-background-dark min-h-screen pb-safe">
+            <div className="bg-background-light dark:bg-background-dark min-h-screen pb-24">
                 <header className="sticky top-0 z-20 flex items-center justify-between p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5">
                     <div className="flex items-center gap-3">
                         <button onClick={() => navigate(-1)} aria-label="Go back" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
@@ -511,8 +525,15 @@ const ConfigurationPage = ({
                         </div>
                         <div className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 space-y-4">
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-900 dark:text-white">Dark Mode</label>
-                                <button onClick={toggleMode} className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-primary' : 'bg-gray-300'}`}>
+                                <label htmlFor="dark-mode-toggle" className="text-sm font-medium text-slate-900 dark:text-white cursor-pointer">Dark Mode</label>
+                                <button
+                                    id="dark-mode-toggle"
+                                    role="switch"
+                                    aria-checked={isDark}
+                                    aria-label="Dark Mode"
+                                    onClick={toggleMode}
+                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-primary' : 'bg-gray-300'}`}
+                                >
                                     <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDark ? 'translate-x-6' : ''}`}></div>
                                 </button>
                             </div>
@@ -568,6 +589,7 @@ const ConfigurationPage = ({
                         ))}
                     </section>
                 </main>
+                <BottomNav onNotesClick={onNotesClick} />
             </div>
         );
     }
@@ -674,8 +696,12 @@ const ConfigurationPage = ({
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs text-gray-500">Use repo-specific PAT</label>
+                                <label htmlFor="repo-token-toggle" className="text-xs text-gray-500 cursor-pointer">Use repo-specific PAT</label>
                                 <button
+                                    id="repo-token-toggle"
+                                    role="switch"
+                                    aria-checked={useCustomToken}
+                                    aria-label="Use repo-specific PAT"
                                     onClick={() => setFormData({ ...formData, useCustomToken: !useCustomToken })}
                                     className={`w-12 h-6 rounded-full p-1 transition-colors ${useCustomToken ? 'bg-primary' : 'bg-gray-300'}`}
                                     type="button"
@@ -803,7 +829,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     }, [activeApp?.id, activeApp?.buildNumber]);
 
-    const persistBuildNumber = async (value: string, appId?: string) => {
+    const persistBuildNumber = React.useCallback(async (value: string, appId?: string) => {
         if (!repo) return;
         const targetId = appId || activeApp?.id;
         if (!targetId) return;
@@ -817,7 +843,21 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         } catch (e) {
             console.error("Failed to save build number", e);
         }
-    };
+    }, [repo, activeApp?.id, tests, repos, user.uid]);
+
+    // Debounce build number persistence to prevent Firebase write spam
+    useEffect(() => {
+        const value = (buildNumber || '').trim();
+        // Avoid saving if the value matches what we already have (e.g. on load/switch)
+        const currentStored = (activeApp?.buildNumber || '').trim();
+        if (value === currentStored) return;
+
+        const timer = setTimeout(() => {
+            persistBuildNumber(value);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [buildNumber, activeApp?.buildNumber, persistBuildNumber]);
 
     const persistBuildNumberRef = useRef(persistBuildNumber);
     useEffect(() => {
@@ -885,7 +925,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         setTab('tests');
         if (app.buildNumber) {
             setBuildNumber(app.buildNumber);
-            persistBuildNumber(app.buildNumber, app.id);
         }
     };
 
@@ -1836,7 +1875,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); }}/>
+                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => setBuildNumber(e.target.value)}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
@@ -2814,7 +2853,7 @@ const App = () => {
           path="/config"
           element={
             <RequireAuth user={user}>
-              <ConfigurationPage repos={repos} setRepos={setRepos} user={user!} globalSettings={globalSettings} setGlobalSettings={setGlobalSettings} />
+              <ConfigurationPage repos={repos} setRepos={setRepos} user={user!} globalSettings={globalSettings} setGlobalSettings={setGlobalSettings} onNotesClick={() => setNotesOpen(true)} />
             </RequireAuth>
           }
         />
