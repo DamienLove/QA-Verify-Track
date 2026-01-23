@@ -819,6 +819,23 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     };
 
+    const persistBuildNumberRef = useRef(persistBuildNumber);
+    useEffect(() => {
+        persistBuildNumberRef.current = persistBuildNumber;
+    });
+
+    // Debounce build number persistence
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const currentAppBuild = activeApp?.buildNumber;
+            // Only save if the value has actually changed from what is in the app config
+            if (currentAppBuild !== buildNumber) {
+                persistBuildNumberRef.current(buildNumber);
+            }
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [buildNumber, activeApp]);
+
     const handleSaveTests = async (updatedTests: Test[]) => {
         if (!repo) return;
         const normalizedTests = normalizeTests(updatedTests);
@@ -1819,7 +1836,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
+                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); }}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
