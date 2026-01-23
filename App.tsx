@@ -511,8 +511,15 @@ const ConfigurationPage = ({
                         </div>
                         <div className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 space-y-4">
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-900 dark:text-white">Dark Mode</label>
-                                <button onClick={toggleMode} className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-primary' : 'bg-gray-300'}`}>
+                                <label htmlFor="dark-mode-toggle" className="text-sm font-medium text-slate-900 dark:text-white cursor-pointer">Dark Mode</label>
+                                <button
+                                    id="dark-mode-toggle"
+                                    role="switch"
+                                    aria-checked={isDark}
+                                    aria-label="Dark Mode"
+                                    onClick={toggleMode}
+                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-primary' : 'bg-gray-300'}`}
+                                >
                                     <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDark ? 'translate-x-6' : ''}`}></div>
                                 </button>
                             </div>
@@ -674,8 +681,12 @@ const ConfigurationPage = ({
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs text-gray-500">Use repo-specific PAT</label>
+                                <label htmlFor="repo-token-toggle" className="text-xs text-gray-500 cursor-pointer">Use repo-specific PAT</label>
                                 <button
+                                    id="repo-token-toggle"
+                                    role="switch"
+                                    aria-checked={useCustomToken}
+                                    aria-label="Use repo-specific PAT"
                                     onClick={() => setFormData({ ...formData, useCustomToken: !useCustomToken })}
                                     className={`w-12 h-6 rounded-full p-1 transition-colors ${useCustomToken ? 'bg-primary' : 'bg-gray-300'}`}
                                     type="button"
