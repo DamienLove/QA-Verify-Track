@@ -525,8 +525,15 @@ const ConfigurationPage = ({
                         </div>
                         <div className="p-4 bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 space-y-4">
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-900 dark:text-white">Dark Mode</label>
-                                <button onClick={toggleMode} className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-primary' : 'bg-gray-300'}`}>
+                                <label htmlFor="dark-mode-toggle" className="text-sm font-medium text-slate-900 dark:text-white cursor-pointer">Dark Mode</label>
+                                <button
+                                    id="dark-mode-toggle"
+                                    role="switch"
+                                    aria-checked={isDark}
+                                    aria-label="Dark Mode"
+                                    onClick={toggleMode}
+                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-primary' : 'bg-gray-300'}`}
+                                >
                                     <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDark ? 'translate-x-6' : ''}`}></div>
                                 </button>
                             </div>
@@ -689,8 +696,12 @@ const ConfigurationPage = ({
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs text-gray-500">Use repo-specific PAT</label>
+                                <label htmlFor="repo-token-toggle" className="text-xs text-gray-500 cursor-pointer">Use repo-specific PAT</label>
                                 <button
+                                    id="repo-token-toggle"
+                                    role="switch"
+                                    aria-checked={useCustomToken}
+                                    aria-label="Use repo-specific PAT"
                                     onClick={() => setFormData({ ...formData, useCustomToken: !useCustomToken })}
                                     className={`w-12 h-6 rounded-full p-1 transition-colors ${useCustomToken ? 'bg-primary' : 'bg-gray-300'}`}
                                     type="button"
@@ -818,7 +829,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     }, [activeApp?.id, activeApp?.buildNumber]);
 
-    const persistBuildNumber = async (value: string, appId?: string) => {
+    const persistBuildNumber = React.useCallback(async (value: string, appId?: string) => {
         if (!repo) return;
         const targetId = appId || activeApp?.id;
         if (!targetId) return;
@@ -832,7 +843,21 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         } catch (e) {
             console.error("Failed to save build number", e);
         }
-    };
+    }, [repo, activeApp?.id, tests, repos, user.uid]);
+
+    // Debounce build number persistence to prevent Firebase write spam
+    useEffect(() => {
+        const value = (buildNumber || '').trim();
+        // Avoid saving if the value matches what we already have (e.g. on load/switch)
+        const currentStored = (activeApp?.buildNumber || '').trim();
+        if (value === currentStored) return;
+
+        const timer = setTimeout(() => {
+            persistBuildNumber(value);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [buildNumber, activeApp?.buildNumber, persistBuildNumber]);
 
     const handleSaveTests = async (updatedTests: Test[]) => {
         if (!repo) return;
@@ -883,7 +908,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         setTab('tests');
         if (app.buildNumber) {
             setBuildNumber(app.buildNumber);
-            persistBuildNumber(app.buildNumber, app.id);
         }
     };
 
@@ -1834,7 +1858,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
+                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => setBuildNumber(e.target.value)}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
