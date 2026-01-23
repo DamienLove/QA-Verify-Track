@@ -72,28 +72,40 @@ const resolveGithubToken = (repo: Repository, globalSettings?: GlobalSettings) =
 
 // --- Shared UI Components ---
 
-const BottomNav = ({ onNotesClick }: { onNotesClick: () => void }) => (
-  <nav className="fixed bottom-0 left-0 w-full bg-background-light/80 dark:bg-background-dark/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/10 z-50 pb-safe">
-    <div className="flex items-center justify-around h-16 max-w-md mx-auto">
-        <Link to="/" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-primary group">
-            <span className="material-symbols-outlined text-[24px]">grid_view</span>
-            <span className="text-[10px] font-bold">Projects</span>
-        </Link>
-        <button
-            onClick={onNotesClick}
-            className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            aria-label="Open Notes"
-        >
-            <span className="material-symbols-outlined text-[24px]">description</span>
-            <span className="text-[10px] font-medium">Notes</span>
-        </button>
-        <Link to="/config" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-            <span className="material-symbols-outlined text-[24px]">settings</span>
-            <span className="text-[10px] font-medium">Config</span>
-        </Link>
-    </div>
-  </nav>
-);
+const BottomNav = ({ onNotesClick }: { onNotesClick: () => void }) => {
+  const location = useLocation();
+  const isConfig = location.pathname.startsWith('/config');
+  const isProjects = !isConfig && (
+      location.pathname === '/' ||
+      location.pathname.startsWith('/dashboard') ||
+      location.pathname.startsWith('/issue')
+  );
+
+  const getLinkClass = (isActive: boolean) => `flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`;
+
+  return (
+    <nav className="fixed bottom-0 left-0 w-full bg-background-light/80 dark:bg-background-dark/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/10 z-50 pb-safe">
+      <div className="flex items-center justify-around h-16 max-w-md mx-auto">
+          <Link to="/" className={getLinkClass(isProjects)}>
+              <span className="material-symbols-outlined text-[24px]">grid_view</span>
+              <span className="text-[10px] font-bold">Projects</span>
+          </Link>
+          <button
+              onClick={onNotesClick}
+              className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              aria-label="Open Notes"
+          >
+              <span className="material-symbols-outlined text-[24px]">description</span>
+              <span className="text-[10px] font-medium">Notes</span>
+          </button>
+          <Link to="/config" className={getLinkClass(isConfig)}>
+              <span className="material-symbols-outlined text-[24px]">settings</span>
+              <span className="text-[10px] font-medium">Config</span>
+          </Link>
+      </div>
+    </nav>
+  );
+};
 
 // --- Auth Page ---
 const LoginPage = () => {
@@ -300,13 +312,15 @@ const ConfigurationPage = ({
     setRepos,
     user,
     globalSettings,
-    setGlobalSettings
+    setGlobalSettings,
+    onNotesClick
 }: {
     repos: Repository[],
     setRepos: React.Dispatch<React.SetStateAction<Repository[]>>,
     user: User,
     globalSettings: GlobalSettings,
-    setGlobalSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>
+    setGlobalSettings: React.Dispatch<React.SetStateAction<GlobalSettings>>,
+    onNotesClick: () => void
 }) => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -495,7 +509,7 @@ const ConfigurationPage = ({
 
     if (view === 'list') {
         return (
-            <div className="bg-background-light dark:bg-background-dark min-h-screen pb-safe">
+            <div className="bg-background-light dark:bg-background-dark min-h-screen pb-24">
                 <header className="sticky top-0 z-20 flex items-center justify-between p-4 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5">
                     <div className="flex items-center gap-3">
                         <button onClick={() => navigate(-1)} aria-label="Go back" className="p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10">
@@ -575,6 +589,7 @@ const ConfigurationPage = ({
                         ))}
                     </section>
                 </main>
+                <BottomNav onNotesClick={onNotesClick} />
             </div>
         );
     }
@@ -843,6 +858,23 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
 
         return () => clearTimeout(timer);
     }, [buildNumber, activeApp?.buildNumber, persistBuildNumber]);
+
+    const persistBuildNumberRef = useRef(persistBuildNumber);
+    useEffect(() => {
+        persistBuildNumberRef.current = persistBuildNumber;
+    });
+
+    // Debounce build number persistence
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const currentAppBuild = activeApp?.buildNumber;
+            // Only save if the value has actually changed from what is in the app config
+            if (currentAppBuild !== buildNumber) {
+                persistBuildNumberRef.current(buildNumber);
+            }
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [buildNumber, activeApp]);
 
     const handleSaveTests = async (updatedTests: Test[]) => {
         if (!repo) return;
@@ -2821,7 +2853,7 @@ const App = () => {
           path="/config"
           element={
             <RequireAuth user={user}>
-              <ConfigurationPage repos={repos} setRepos={setRepos} user={user!} globalSettings={globalSettings} setGlobalSettings={setGlobalSettings} />
+              <ConfigurationPage repos={repos} setRepos={setRepos} user={user!} globalSettings={globalSettings} setGlobalSettings={setGlobalSettings} onNotesClick={() => setNotesOpen(true)} />
             </RequireAuth>
           }
         />
