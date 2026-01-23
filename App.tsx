@@ -145,11 +145,11 @@ const LoginPage = () => {
                     <form onSubmit={handleAuth} className="space-y-4">
                         <div className="space-y-1">
                             <label htmlFor="email" className="text-xs uppercase font-bold text-gray-500">Email</label>
-                            <input id="email" value={email} onChange={e=>setEmail(e.target.value)} type="email" required className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="qa@acme.inc" />
+                            <input id="email" value={email} onChange={e=>setEmail(e.target.value)} type="email" required maxLength={254} className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="qa@acme.inc" />
                         </div>
                         <div className="space-y-1">
                             <label htmlFor="password" className="text-xs uppercase font-bold text-gray-500">Password</label>
-                            <input id="password" value={password} onChange={e=>setPassword(e.target.value)} type="password" required className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="••••••••" />
+                            <input id="password" value={password} onChange={e=>setPassword(e.target.value)} type="password" required maxLength={128} className="w-full bg-input-dark border-transparent rounded-lg p-3 text-white focus:ring-primary focus:border-primary" placeholder="••••••••" />
                         </div>
                         <button disabled={loading} className="w-full bg-primary text-black font-bold h-12 rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50">
                             {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
@@ -607,6 +607,7 @@ const ConfigurationPage = ({
                                 onChange={(e) => setGlobalForm({ ...globalForm, globalGithubToken: e.target.value })}
                                 type="password"
                                 placeholder="ghp_..."
+                                maxLength={512}
                                 className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white"
                             />
                             <p className="text-[10px] text-gray-500">Used for repositories that disable per-repo tokens.</p>
@@ -660,16 +661,16 @@ const ConfigurationPage = ({
                     <div className="space-y-3">
                         <div className="space-y-1">
                             <label htmlFor="repo-display-name" className="text-xs text-gray-500">Display Name</label>
-                            <input id="repo-display-name" value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" autoFocus />
+                            <input id="repo-display-name" value={formData.displayName} onChange={e => setFormData({...formData, displayName: e.target.value})} type="text" maxLength={50} className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" autoFocus />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                                 <label htmlFor="repo-owner" className="text-xs text-gray-500">Owner</label>
-                                <input id="repo-owner" value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" placeholder="org" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                <input id="repo-owner" value={formData.owner} onChange={e => setFormData({...formData, owner: e.target.value})} type="text" placeholder="org" maxLength={39} className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                             <div className="space-y-1">
                                 <label htmlFor="repo-name" className="text-xs text-gray-500">Repo Name</label>
-                                <input id="repo-name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                <input id="repo-name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" placeholder="repo" maxLength={100} className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -686,7 +687,7 @@ const ConfigurationPage = ({
                             {useCustomToken ? (
                                 <>
                                     <label htmlFor="repo-token" className="text-xs text-gray-500">GitHub Personal Access Token (PAT)</label>
-                                    <input id="repo-token" value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
+                                    <input id="repo-token" value={formData.githubToken || ''} onChange={e => setFormData({...formData, githubToken: e.target.value})} type="password" placeholder="ghp_..." maxLength={512} className="w-full bg-white dark:bg-input-dark border-gray-200 dark:border-white/10 rounded-lg px-4 py-3 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white" />
                                     <p className="text-[10px] text-gray-500">Used for reading/writing to this repository.</p>
                                 </>
                             ) : (
@@ -716,7 +717,7 @@ const ConfigurationPage = ({
                             <div className="grid grid-cols-2 gap-3 pr-6">
                                 <div className="space-y-1">
                                     <label htmlFor={`app-name-${idx}`} className="text-[10px] uppercase text-gray-500">App Name</label>
-                                    <input id={`app-name-${idx}`} value={app.name} onChange={e => updateApp(idx, 'name', e.target.value)} type="text" className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
+                                    <input id={`app-name-${idx}`} value={app.name} onChange={e => updateApp(idx, 'name', e.target.value)} type="text" maxLength={50} className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
                                 </div>
                                 <div className="space-y-1">
                                     <label htmlFor={`app-platform-${idx}`} className="text-[10px] uppercase text-gray-500">Platform</label>
@@ -729,11 +730,11 @@ const ConfigurationPage = ({
                             </div>
                             <div className="space-y-1">
                                 <label htmlFor={`app-url-${idx}`} className="text-[10px] uppercase text-gray-500">Test URL (Play Store/TestFlight)</label>
-                                <input id={`app-url-${idx}`} value={app.playStoreUrl || ''} onChange={e => updateApp(idx, 'playStoreUrl', e.target.value)} type="text" placeholder="https://..." className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
+                                <input id={`app-url-${idx}`} value={app.playStoreUrl || ''} onChange={e => updateApp(idx, 'playStoreUrl', e.target.value)} type="text" placeholder="https://..." maxLength={2048} className="w-full bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm text-slate-900 dark:text-white" />
                             </div>
                             <div className="space-y-1">
                                 <label htmlFor={`app-build-${idx}`} className="text-[10px] uppercase text-gray-500">Current Build #</label>
-                                <input id={`app-build-${idx}`} value={app.buildNumber} onChange={e => updateApp(idx, 'buildNumber', e.target.value)} type="text" className="w-24 bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-900 dark:text-white" />
+                                <input id={`app-build-${idx}`} value={app.buildNumber} onChange={e => updateApp(idx, 'buildNumber', e.target.value)} type="text" maxLength={20} className="w-24 bg-background-light dark:bg-background-dark border-transparent rounded px-2 py-1.5 text-sm font-mono font-bold text-slate-900 dark:text-white" />
                             </div>
                         </div>
                     ))}
@@ -1819,7 +1820,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }}/>
+                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }} maxLength={20}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
@@ -2069,6 +2070,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                         onChange={e => setNewTestDesc(e.target.value)}
                                         onKeyDown={e => e.key === 'Enter' && handleAddTest()}
                                         placeholder="e.g. Verify login with invalid credentials"
+                                        maxLength={255}
                                         className="flex-1 bg-background-light dark:bg-background-dark border-transparent rounded-lg px-3 py-2 text-sm focus:ring-primary focus:border-primary text-slate-900 dark:text-white"
                                     />
                                     <button onClick={handleAddTest} disabled={!newTestDesc.trim()} className="bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-slate-900 dark:text-white px-4 rounded-lg font-bold text-sm disabled:opacity-50">Add</button>
@@ -2184,6 +2186,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                             onChange={(e) => setBlockReason(e.target.value)}
                             className="mt-3 w-full min-h-[120px] rounded-lg bg-input-dark p-3 text-sm text-white"
                             placeholder="e.g. Waiting on backend fix / missing access"
+                            maxLength={1000}
                         />
                         {blockError && <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{blockError}</div>}
                         <div className="mt-4 flex items-center justify-end gap-2">
@@ -2533,6 +2536,7 @@ const IssueDetailPage = ({ repos, globalSettings, onNotesClick }: { repos: Repos
                                     onChange={(e) => setCommentDraft(e.target.value)}
                                     className="w-full min-h-[120px] rounded-lg bg-gray-50 dark:bg-black/30 p-3 text-sm text-gray-700 dark:text-gray-200"
                                     placeholder="Add a comment..."
+                                    maxLength={65536}
                                 />
                                 {commentError && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{commentError}</div>}
                                 <div className="flex justify-end">
@@ -2699,15 +2703,16 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                               onChange={(e) => setBuildNumber(e.target.value)}
                               className="w-full bg-input-dark rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-primary focus:border-primary"
                               placeholder="e.g. 10"
+                              maxLength={20}
                           />
                       </div>
                       <div className="space-y-1">
                           <label htmlFor="quick-issue-title" className="text-xs uppercase font-bold text-gray-500">Title</label>
-                          <input id="quick-issue-title" value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg focus:ring-primary focus:border-primary" placeholder="Title" autoFocus required />
+                          <input id="quick-issue-title" value={title} onChange={e=>setTitle(e.target.value)} className="w-full bg-input-dark rounded-xl px-4 py-4 text-white text-lg focus:ring-primary focus:border-primary" placeholder="Title" autoFocus required maxLength={256} />
                       </div>
                       <div className="space-y-1">
                           <label htmlFor="quick-issue-desc" className="text-xs uppercase font-bold text-gray-500">Description</label>
-                          <textarea id="quick-issue-desc" value={desc} onChange={e=>setDesc(e.target.value)} className="w-full bg-input-dark rounded-xl p-4 text-white min-h-[200px] focus:ring-primary focus:border-primary" placeholder="Description"></textarea>
+                          <textarea id="quick-issue-desc" value={desc} onChange={e=>setDesc(e.target.value)} className="w-full bg-input-dark rounded-xl p-4 text-white min-h-[200px] focus:ring-primary focus:border-primary" placeholder="Description" maxLength={65536}></textarea>
                       </div>
                       <button type="submit" disabled={!title || isSubmitting} className="w-full bg-primary h-14 rounded-xl font-bold text-black disabled:opacity-50">{isSubmitting ? 'Submitting...' : 'Submit'}</button>
                  </form>
