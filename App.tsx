@@ -859,6 +859,23 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         return () => clearTimeout(timer);
     }, [buildNumber, activeApp?.buildNumber, persistBuildNumber]);
 
+    const persistBuildNumberRef = useRef(persistBuildNumber);
+    useEffect(() => {
+        persistBuildNumberRef.current = persistBuildNumber;
+    });
+
+    // Debounce build number persistence
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const currentAppBuild = activeApp?.buildNumber;
+            // Only save if the value has actually changed from what is in the app config
+            if (currentAppBuild !== buildNumber) {
+                persistBuildNumberRef.current(buildNumber);
+            }
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [buildNumber, activeApp]);
+
     const handleSaveTests = async (updatedTests: Test[]) => {
         if (!repo) return;
         const normalizedTests = normalizeTests(updatedTests);
