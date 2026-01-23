@@ -13,3 +13,7 @@
 ## 2024-05-24 - Toggle Switch Accessibility
 **Learning:** Visual toggle switches implemented as buttons need `role="switch"` and `aria-checked` to be correctly interpreted by screen readers. Without these attributes, they are announced merely as "buttons" without state information.
 **Action:** For all toggle-style buttons, explicitly add `role="switch"`, `aria-checked={state}`, and ensure they are labelled via `aria-label` or `aria-labelledby` (or `label` with `htmlFor`).
+
+## 2024-05-25 - Persistent Bottom Navigation State
+**Learning:** For apps with a persistent bottom bar, relying on hardcoded active states confuses users when navigating to "secondary" top-level pages (like Config). Users expect the navigation bar to accurately reflect their location.
+**Action:** Use `useLocation` to dynamically determine the active tab in global navigation components. Ensure persistent navigation elements remain visible on all top-level destinations to prevent "dead ends".
