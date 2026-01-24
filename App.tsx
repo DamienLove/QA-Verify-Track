@@ -1897,10 +1897,10 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             <section className="px-4 py-3 space-y-3">
                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                     <div className="flex-1 space-y-1.5">
-                        <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
+                        <label htmlFor="dashboard-target-build" className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">Target Build</label>
                         <div className="relative flex items-center gap-2">
                             <span className="absolute left-3 material-symbols-outlined text-gray-400 text-[20px]">tag</span>
-                            <input className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }} maxLength={20}/>
+                            <input id="dashboard-target-build" className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg py-3 pl-10 pr-3 font-mono font-bold text-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all text-slate-900 dark:text-white" type="text" value={buildNumber} onChange={(e) => { const value = e.target.value; setBuildNumber(value); persistBuildNumber(value); }} maxLength={20}/>
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
@@ -1922,8 +1922,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                         </div>
                     </div>
                     <div className="flex-1 space-y-1.5">
-                         <label className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">App Variant</label>
+                         <label htmlFor="dashboard-app-variant" className="text-xs font-semibold text-gray-500 dark:text-[#9db99f] uppercase tracking-wider">App Variant</label>
                          <select
+                             id="dashboard-app-variant"
                              value={activeApp?.id || ''}
                              onChange={(e) => setActiveAppId(e.target.value)}
                              className="w-full bg-white dark:bg-input-dark backdrop-blur-sm border-gray-200 dark:border-white/5 rounded-lg h-[54px] px-3 font-medium text-sm text-slate-900 dark:text-white focus:ring-primary focus:border-primary"
@@ -2777,8 +2778,9 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                  <div className="flex-1 overflow-y-auto scroll-smooth">
                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
                       <div className="space-y-1">
-                          <label className="text-xs uppercase font-bold text-gray-500">Found in Build</label>
+                          <label htmlFor="quick-issue-build" className="text-xs uppercase font-bold text-gray-500">Found in Build</label>
                           <input
+                              id="quick-issue-build"
                               value={buildNumber}
                               onChange={(e) => setBuildNumber(e.target.value)}
                               className="w-full bg-input-dark rounded-xl px-4 py-3 text-white font-mono text-sm focus:ring-primary focus:border-primary"
