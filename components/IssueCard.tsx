@@ -35,7 +35,7 @@ export const IssueCard = memo(({
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                         <span className={`font-bold text-xs tracking-tight flex items-center gap-1 uppercase ${issue.priority === 'critical' ? 'text-red-500' : issue.priority === 'high' ? 'text-orange-500' : 'text-blue-400'}`}>
-                            <span className="material-symbols-outlined text-[14px] fill-1">{issue.priority === 'critical' ? 'error' : 'flag'}</span>{issue.priority}
+                            <span className="material-symbols-outlined text-[14px] fill-1" aria-hidden="true">{issue.priority === 'critical' ? 'error' : 'flag'}</span>{issue.priority}
                         </span>
                         <span className="text-gray-500 dark:text-gray-500 text-[11px] font-medium">#{issue.number}</span>
                     </div>
@@ -52,7 +52,7 @@ export const IssueCard = memo(({
             {analysisResult && (
                 <div className="bg-primary/10 border border-primary/25 rounded-lg p-2 animate-fade-in">
                     <div className="flex items-center gap-1 mb-1 text-primary">
-                        <span className="material-symbols-outlined text-[15px]">smart_toy</span>
+                        <span className="material-symbols-outlined text-[15px]" aria-hidden="true">smart_toy</span>
                         <span className="text-[11px] font-bold uppercase">Gemini Analysis</span>
                     </div>
                     <p className="text-[11px] text-slate-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{analysisResult}</p>
@@ -60,9 +60,9 @@ export const IssueCard = memo(({
             )}
 
             <div className="grid grid-cols-4 gap-1.5 mt-0.5">
-                <button disabled={isBusy} onClick={() => onFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">check_circle</span>Fixed</button>
-                <button disabled={isBusy} onClick={() => onOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">warning</span>Open</button>
-                <button disabled={isBusy} onClick={() => onBlock(issue)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]">block</span>Blocked</button>
+                <button disabled={isBusy} onClick={() => onFixed(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-primary text-black font-semibold text-[11px] shadow-[0_2px_8px_rgba(19,236,37,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]" aria-hidden="true">check_circle</span>Fixed</button>
+                <button disabled={isBusy} onClick={() => onOpen(issue.id, issue.number)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-orange-500 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(249,115,22,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]" aria-hidden="true">warning</span>Open</button>
+                <button disabled={isBusy} onClick={() => onBlock(issue)} className="col-span-1 flex flex-col items-center justify-center gap-1 h-9 rounded-lg bg-red-600 text-white font-semibold text-[11px] shadow-[0_2px_8px_rgba(220,38,38,0.25)] active:scale-95 transition-transform disabled:opacity-50"><span className="material-symbols-outlined text-[18px]" aria-hidden="true">block</span>Blocked</button>
                 <button
                     onClick={() => onAnalyze(issue)}
                     disabled={isAnalyzing}
@@ -71,7 +71,7 @@ export const IssueCard = memo(({
                     {isAnalyzing ? (
                         <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
                     ) : (
-                        <span className="material-symbols-outlined text-[18px]">analytics</span>
+                        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">analytics</span>
                     )}
                     Analyze
                 </button>
@@ -83,7 +83,7 @@ export const IssueCard = memo(({
                         disabled={isBusy}
                         className="w-full flex items-center justify-center gap-2 h-9 rounded-lg bg-purple-600 text-white font-semibold text-xs shadow-[0_2px_8px_rgba(147,51,234,0.3)] active:scale-95 transition-transform disabled:opacity-50 hover:bg-purple-700"
                     >
-                        <span className="material-symbols-outlined text-[18px]">auto_fix_high</span>
+                        <span className="material-symbols-outlined text-[18px]" aria-hidden="true">auto_fix_high</span>
                         Auto Fix &amp; Publish
                     </button>
                 </div>
