@@ -106,7 +106,11 @@ fun RepoDetailScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Apps: ${repo.apps.size}", style = MaterialTheme.typography.bodySmall)
                         Text(
-                            text = if (repo.githubToken.isNullOrBlank()) "GitHub token not set" else "GitHub token set",
+                            text = if (repo.useCustomToken) {
+                                if (repo.githubToken.isNullOrBlank()) "GitHub token not set (custom)" else "Custom GitHub token set"
+                            } else {
+                                "Using global GitHub token"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

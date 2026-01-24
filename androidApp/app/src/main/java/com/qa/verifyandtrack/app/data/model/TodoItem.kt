@@ -7,6 +7,6 @@ import kotlinx.parcelize.Parcelize
 data class TodoItem(
     val repoId: String = "",
     val repoName: String = "",
-    val openIssueCount: Int = 0,
-    val openPrCount: Int = 0
+    val openIssueCount: Int? = null,
+    val openPrCount: Int? = null
 ) : Parcelable

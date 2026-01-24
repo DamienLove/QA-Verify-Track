@@ -100,42 +100,34 @@ class GitHubService {
 
     suspend fun getIssues(owner: String, repo: String, state: String = "open"): List<Issue> {
         requireToken()
-        return try {
-            val allIssues = mutableListOf<IssueResponse>()
-            var page = 1
-            val perPage = 100
-            while (true) {
-                val pageItems = api.listIssues(owner, repo, state, page = page, perPage = perPage)
-                if (pageItems.isEmpty()) break
-                allIssues.addAll(pageItems)
-                if (pageItems.size < perPage) break
-                page++
-            }
-            allIssues
-                .filter { it.pullRequest == null }
-                .map { mapIssue(it) }
-        } catch (e: Exception) {
-            emptyList()
+        val allIssues = mutableListOf<IssueResponse>()
+        var page = 1
+        val perPage = 100
+        while (true) {
+            val pageItems = api.listIssues(owner, repo, state, page = page, perPage = perPage)
+            if (pageItems.isEmpty()) break
+            allIssues.addAll(pageItems)
+            if (pageItems.size < perPage) break
+            page++
         }
+        return allIssues
+            .filter { it.pullRequest == null }
+            .map { mapIssue(it) }
     }
 
     suspend fun getPullRequests(owner: String, repo: String, state: String = "open", head: String? = null): List<PullRequest> {
         requireToken()
-        return try {
-            val allPulls = mutableListOf<PullRequestResponse>()
-            var page = 1
-            val perPage = 100
-            while (true) {
-                val pageItems = api.listPulls(owner, repo, state = state, head = head, page = page, perPage = perPage)
-                if (pageItems.isEmpty()) break
-                allPulls.addAll(pageItems)
-                if (pageItems.size < perPage) break
-                page++
-            }
-            allPulls.map { mapPullRequest(it) }
-        } catch (e: Exception) {
-            emptyList()
+        val allPulls = mutableListOf<PullRequestResponse>()
+        var page = 1
+        val perPage = 100
+        while (true) {
+            val pageItems = api.listPulls(owner, repo, state = state, head = head, page = page, perPage = perPage)
+            if (pageItems.isEmpty()) break
+            allPulls.addAll(pageItems)
+            if (pageItems.size < perPage) break
+            page++
         }
+        return allPulls.map { mapPullRequest(it) }
     }
 
     suspend fun getPullRequest(owner: String, repo: String, pullNumber: Int): PullRequestDetail {
@@ -155,21 +147,17 @@ class GitHubService {
 
     suspend fun getPullRequestFiles(owner: String, repo: String, pullNumber: Int): List<PullRequestFile> {
         requireToken()
-        return try {
-            val files = mutableListOf<PullRequestFileResponse>()
-            var page = 1
-            val perPage = 100
-            while (true) {
-                val pageItems = api.listPullFiles(owner, repo, pullNumber, page = page, perPage = perPage)
-                if (pageItems.isEmpty()) break
-                files.addAll(pageItems)
-                if (pageItems.size < perPage) break
-                page++
-            }
-            files.map { mapPullFile(it) }
-        } catch (e: Exception) {
-            emptyList()
+        val files = mutableListOf<PullRequestFileResponse>()
+        var page = 1
+        val perPage = 100
+        while (true) {
+            val pageItems = api.listPullFiles(owner, repo, pullNumber, page = page, perPage = perPage)
+            if (pageItems.isEmpty()) break
+            files.addAll(pageItems)
+            if (pageItems.size < perPage) break
+            page++
         }
+        return files.map { mapPullFile(it) }
     }
 
     suspend fun createIssue(owner: String, repo: String, title: String, body: String, labels: List<String>): Issue {

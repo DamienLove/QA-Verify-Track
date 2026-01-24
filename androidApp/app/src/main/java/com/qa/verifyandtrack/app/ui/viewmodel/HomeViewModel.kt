@@ -108,15 +108,15 @@ class HomeViewModel : ViewModel() {
                     val token = resolveGithubToken(repo, settings)
                     val issueCount = if (!token.isNullOrBlank()) {
                         gitHubRepository.initialize(token)
-                        runCatching { gitHubRepository.getOpenIssueCount(repo.owner, repo.name) }.getOrDefault(0)
+                        runCatching { gitHubRepository.getOpenIssueCount(repo.owner, repo.name) }.getOrNull()
                     } else {
-                        0
+                        null
                     }
                     val prCount = if (!token.isNullOrBlank()) {
                         gitHubRepository.initialize(token)
-                        runCatching { gitHubRepository.getPullRequests(repo.owner, repo.name).size }.getOrDefault(0)
+                        runCatching { gitHubRepository.getPullRequests(repo.owner, repo.name).size }.getOrNull()
                     } else {
-                        0
+                        null
                     }
                     TodoItem(
                         repoId = repo.id,

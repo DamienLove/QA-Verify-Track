@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -42,8 +43,10 @@ import com.qa.verifyandtrack.app.ui.viewmodel.ConfigViewModel
 @Composable
 fun ConfigurationScreen(navController: NavHostController, viewModel: ConfigViewModel = viewModel()) {
     val repos by viewModel.repos.collectAsState()
+    val globalSettings by viewModel.globalSettings.collectAsState()
 
     var showRepoDialog by remember { mutableStateOf(false) }
+    var showGlobalDialog by remember { mutableStateOf(false) }
     var editingRepo by remember { mutableStateOf<Repository?>(null) }
 
     Scaffold(
@@ -57,16 +60,57 @@ fun ConfigurationScreen(navController: NavHostController, viewModel: ConfigViewM
             }
         }
     ) { padding ->
-        if (repos.isEmpty()) {
-            EmptyState("Add a repository to get started.")
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text(
+                    "Global Settings",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showGlobalDialog = true }
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text("GitHub Personal Access Token", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    if (globalSettings?.globalGithubToken.isNullOrBlank()) "Not set" else "••••••••",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(Icons.Rounded.Edit, contentDescription = "Edit global token")
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Repositories",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+
+            if (repos.isEmpty()) {
+                item {
+                    EmptyState("No repositories configured yet.")
+                }
+            } else {
                 items(repos) { repo ->
                     RepoCard(
                         repo = repo,
@@ -82,6 +126,17 @@ fun ConfigurationScreen(navController: NavHostController, viewModel: ConfigViewM
                 }
             }
         }
+    }
+
+    if (showGlobalDialog) {
+        GlobalSettingsDialog(
+            initial = globalSettings,
+            onDismiss = { showGlobalDialog = false },
+            onSave = { settings ->
+                viewModel.saveGlobalSettings(settings)
+                showGlobalDialog = false
+            }
+        )
     }
 
     if (showRepoDialog) {

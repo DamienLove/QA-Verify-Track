@@ -135,17 +135,22 @@ class DashboardViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(token)
-                val fetchedIssues = gitHubRepository.getIssues(repo.owner, repo.name, "open")
-                val fetchedPulls = gitHubRepository.getPullRequests(repo.owner, repo.name)
-                val (statusMap, verifyFixMap) = buildIssueStatusMaps(repo, fetchedIssues)
-                _issues.value = fetchedIssues
-                _pullRequests.value = fetchedPulls
-                _issueBuildMap.value = statusMap
-                _issueVerifyFixMap.value = verifyFixMap
+            try {
+                withContext(Dispatchers.IO) {
+                    gitHubRepository.initialize(token)
+                    val fetchedIssues = gitHubRepository.getIssues(repo.owner, repo.name, "open")
+                    val fetchedPulls = gitHubRepository.getPullRequests(repo.owner, repo.name)
+                    val (statusMap, verifyFixMap) = buildIssueStatusMaps(repo, fetchedIssues)
+                    _issues.value = fetchedIssues
+                    _pullRequests.value = fetchedPulls
+                    _issueBuildMap.value = statusMap
+                    _issueVerifyFixMap.value = verifyFixMap
+                }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to sync GitHub data."
+            } finally {
+                _isLoading.value = false
             }
-            _isLoading.value = false
         }
     }
 
@@ -429,13 +434,21 @@ class DashboardViewModel : ViewModel() {
         val repo = _repo.value ?: return
         val token = requireToken(repo) ?: return
         viewModelScope.launch {
+            val failures = mutableListOf<String>()
             withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(token)
                 pullRequests.forEach { pr ->
-                    gitHubRepository.denyPR(repo.owner, repo.name, pr.number)
+                    runCatching {
+                        gitHubRepository.denyPR(repo.owner, repo.name, pr.number)
+                    }.onFailure { error ->
+                        failures.add("PR #${pr.number}: ${error.message ?: "Failed to close."}")
+                    }
                 }
             }
             syncGitHub()
+            if (failures.isNotEmpty()) {
+                _error.value = failures.joinToString("\n")
+            }
         }
     }
 
@@ -443,11 +456,24 @@ class DashboardViewModel : ViewModel() {
         val repo = _repo.value ?: return
         val token = requireToken(repo) ?: return
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
+            _isLoading.value = true
+            val result = withContext(Dispatchers.IO) {
                 gitHubRepository.initialize(token)
-                gitHubRepository.updateBranch(repo.owner, repo.name, prNumber)
+                runCatching {
+                    gitHubRepository.updateBranch(repo.owner, repo.name, prNumber)
+                }
             }
-            syncGitHub()
+            if (result.isSuccess) {
+                val success = result.getOrThrow()
+                if (success) {
+                    syncGitHub()
+                } else {
+                    _error.value = "Auto-resolve failed. Please resolve conflicts manually in GitHub."
+                }
+            } else {
+                _error.value = result.exceptionOrNull()?.message ?: "Failed to update branch."
+            }
+            _isLoading.value = false
         }
     }
 
