@@ -5,6 +5,7 @@ import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
+import { isValidUrl } from './services/security';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
 import { IssueCard } from './components/IssueCard';
@@ -460,6 +461,16 @@ const ConfigurationPage = ({
             if (/\s/.test(formData.githubToken)) {
                 setSaveError('Token must not contain whitespace.');
                 return;
+            }
+        }
+
+        // Validate App URLs (Security: Prevent XSS in Dashboard)
+        if (formData.apps) {
+            for (const app of formData.apps) {
+                if (app.playStoreUrl && !isValidUrl(app.playStoreUrl)) {
+                    setSaveError(`Invalid URL for app "${app.name || 'Unknown'}". Allowed protocols: http, https, market, itms-apps, itms-services.`);
+                    return;
+                }
             }
         }
 
@@ -1964,7 +1975,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                      >
                                          View Tests
                                      </button>
-                                     {app.playStoreUrl ? (
+                                     {app.playStoreUrl && isValidUrl(app.playStoreUrl) ? (
                                          <a
                                              href={app.playStoreUrl}
                                              target="_blank"
