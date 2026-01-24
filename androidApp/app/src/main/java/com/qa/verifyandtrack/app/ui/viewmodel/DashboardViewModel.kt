@@ -6,7 +6,9 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qa.verifyandtrack.app.data.AppContainer
+import com.qa.verifyandtrack.app.data.resolveGithubToken
 import com.qa.verifyandtrack.app.data.export.ExportService
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import com.qa.verifyandtrack.app.data.model.Issue
 import com.qa.verifyandtrack.app.data.model.PullRequest
 import com.qa.verifyandtrack.app.data.model.Repository
@@ -62,6 +64,9 @@ class DashboardViewModel : ViewModel() {
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile: StateFlow<UserProfile?> = _userProfile
 
+    private val _globalSettings = MutableStateFlow<GlobalSettings?>(null)
+    val globalSettings: StateFlow<GlobalSettings?> = _globalSettings
+
     private val _showPaywall = MutableStateFlow<String?>(null)
     val showPaywall: StateFlow<String?> = _showPaywall
 
@@ -80,6 +85,16 @@ class DashboardViewModel : ViewModel() {
                 }
                 .collect { profile ->
                     _userProfile.value = profile
+                }
+        }
+
+        viewModelScope.launch {
+            authRepository.observeAuthState()
+                .flatMapLatest { user ->
+                    if (user == null) flowOf(null) else repoRepository.observeGlobalSettings(user.uid)
+                }
+                .collect { settings ->
+                    _globalSettings.value = settings
                 }
         }
     }
@@ -116,11 +131,7 @@ class DashboardViewModel : ViewModel() {
 
     fun syncGitHub() {
         val repo = _repo.value ?: return
-        val token = repo.githubToken
-        if (token.isNullOrBlank()) {
-            _error.value = "Missing GitHub token for ${repo.displayLabel}."
-            return
-        }
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
@@ -176,9 +187,10 @@ class DashboardViewModel : ViewModel() {
 
     fun markIssueFixed(issueNumber: Int, buildNumber: String) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 val tag = buildNumber.trim()
                 val status = if (tag.isNotBlank()) "fixed v$tag" else "fixed"
                 runCatching {
@@ -198,9 +210,10 @@ class DashboardViewModel : ViewModel() {
 
     fun markIssueOpen(issueNumber: Int, buildNumber: String) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 val tag = buildNumber.trim()
                 val status = if (tag.isNotBlank()) "open v$tag" else "open"
                 runCatching {
@@ -220,9 +233,10 @@ class DashboardViewModel : ViewModel() {
 
     fun blockIssue(issueNumber: Int, reason: String, buildNumber: String) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 val tag = buildNumber.trim()
                 val status = if (tag.isNotBlank()) "blocked v$tag" else "blocked"
                 val body = if (reason.isNotBlank()) "$status - $reason" else status
@@ -250,13 +264,14 @@ class DashboardViewModel : ViewModel() {
 
     fun mergePR(pullRequest: PullRequest, deleteBranches: Boolean) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         if (pullRequest.isDraft) {
             _error.value = "Draft PRs cannot be merged. Tap Ready or Ready + Merge first."
             return
         }
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 val mergeResult = gitHubRepository.mergePR(repo.owner, repo.name, pullRequest.number)
                 if (mergeResult.isSuccess) {
                     maybeDeleteBranchAfterMerge(repo, pullRequest, deleteBranches)
@@ -271,11 +286,21 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
+    private fun requireToken(repo: Repository): String? {
+        val token = resolveGithubToken(repo, _globalSettings.value)
+        if (token.isNullOrBlank()) {
+            _error.value = "Missing GitHub token. Configure a global or repo token."
+            return null
+        }
+        return token
+    }
+
     fun readyAndMergePR(pullRequest: PullRequest, deleteBranches: Boolean) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 val readyResult = if (pullRequest.isDraft) {
                     gitHubRepository.markReadyForReview(repo.owner, repo.name, pullRequest.number)
                 } else {
@@ -300,9 +325,10 @@ class DashboardViewModel : ViewModel() {
 
     fun denyPR(prNumber: Int) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 gitHubRepository.denyPR(repo.owner, repo.name, prNumber)
             }
             syncGitHub()
@@ -312,10 +338,11 @@ class DashboardViewModel : ViewModel() {
     fun mergeSelectedPRs(pullRequests: List<PullRequest>, deleteBranches: Boolean) {
         if (pullRequests.isEmpty()) return
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             val failures = mutableListOf<String>()
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 pullRequests.forEach { pr ->
                     if (pr.isDraft) {
                         failures.add("PR #${pr.number}: draft PRs cannot be merged.")
@@ -342,10 +369,11 @@ class DashboardViewModel : ViewModel() {
     fun readySelectedPRs(pullRequests: List<PullRequest>) {
         if (pullRequests.isEmpty()) return
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             val failures = mutableListOf<String>()
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 pullRequests.forEach { pr ->
                     val result = gitHubRepository.markReadyForReview(repo.owner, repo.name, pr.number)
                     if (result.isFailure) {
@@ -363,10 +391,11 @@ class DashboardViewModel : ViewModel() {
     fun readyAndMergeSelectedPRs(pullRequests: List<PullRequest>, deleteBranches: Boolean) {
         if (pullRequests.isEmpty()) return
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             val failures = mutableListOf<String>()
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 pullRequests.forEach { pr ->
                     val readyResult = if (pr.isDraft) {
                         gitHubRepository.markReadyForReview(repo.owner, repo.name, pr.number)
@@ -398,9 +427,10 @@ class DashboardViewModel : ViewModel() {
     fun denySelectedPRs(pullRequests: List<PullRequest>) {
         if (pullRequests.isEmpty()) return
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 pullRequests.forEach { pr ->
                     gitHubRepository.denyPR(repo.owner, repo.name, pr.number)
                 }
@@ -411,9 +441,10 @@ class DashboardViewModel : ViewModel() {
 
     fun resolveConflict(prNumber: Int) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 gitHubRepository.updateBranch(repo.owner, repo.name, prNumber)
             }
             syncGitHub()
@@ -422,9 +453,10 @@ class DashboardViewModel : ViewModel() {
 
     fun markReadyForReview(prNumber: Int) {
         val repo = _repo.value ?: return
+        val token = requireToken(repo) ?: return
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken ?: "")
+                gitHubRepository.initialize(token)
                 gitHubRepository.markReadyForReview(repo.owner, repo.name, prNumber)
             }
             if (result.isSuccess) {

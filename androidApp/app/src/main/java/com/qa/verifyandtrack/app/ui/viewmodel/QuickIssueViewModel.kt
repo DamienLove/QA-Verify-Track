@@ -3,6 +3,8 @@ package com.qa.verifyandtrack.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qa.verifyandtrack.app.data.AppContainer
+import com.qa.verifyandtrack.app.data.resolveGithubToken
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import com.qa.verifyandtrack.app.data.model.Repository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +29,9 @@ class QuickIssueViewModel : ViewModel() {
     private val _success = MutableStateFlow(false)
     val success: StateFlow<Boolean> = _success
 
+    private val _globalSettings = MutableStateFlow<GlobalSettings?>(null)
+    val globalSettings: StateFlow<GlobalSettings?> = _globalSettings
+
     fun setRepoId(repoId: String?) {
         if (repoId.isNullOrBlank()) {
             _error.value = "Missing repository ID."
@@ -40,6 +45,7 @@ class QuickIssueViewModel : ViewModel() {
             }
             val repos = repoRepository.getRepos(userId)
             _repo.value = repos.firstOrNull { it.id == repoId }
+            _globalSettings.value = repoRepository.getGlobalSettings(userId)
         }
     }
 
@@ -49,8 +55,9 @@ class QuickIssueViewModel : ViewModel() {
             _error.value = "Repository not selected."
             return
         }
-        if (repo.githubToken.isNullOrBlank()) {
-            _error.value = "Missing GitHub token."
+        val token = resolveGithubToken(repo, _globalSettings.value)
+        if (token.isNullOrBlank()) {
+            _error.value = "Missing GitHub token. Configure a global or repo token."
             return
         }
         viewModelScope.launch {
@@ -58,7 +65,7 @@ class QuickIssueViewModel : ViewModel() {
             _error.value = null
             _success.value = false
             val result = withContext(Dispatchers.IO) {
-                gitHubRepository.initialize(repo.githubToken)
+                gitHubRepository.initialize(token)
                 runCatching {
                     val created = gitHubRepository.createIssue(repo.owner, repo.name, title, description, labels)
                     val tag = buildNumber?.trim().orEmpty()

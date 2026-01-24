@@ -154,7 +154,7 @@ export const githubService = {
       return issues;
     } catch (e) {
       console.error("Failed to fetch issues", e);
-      return [];
+      throw e;
     }
   },
 
@@ -237,7 +237,7 @@ export const githubService = {
       return allPrs;
     } catch (e) {
       console.error("Failed to fetch PRs", e);
-      return [];
+      throw e;
     }
   },
 

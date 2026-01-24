@@ -12,6 +12,7 @@ import com.google.firebase.firestore.SetOptions
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import com.qa.verifyandtrack.app.data.model.Repository
 import com.qa.verifyandtrack.app.data.model.UserProfile
 import com.qa.verifyandtrack.app.data.model.UserSettings
@@ -75,15 +76,39 @@ class FirebaseService(
         awaitClose { registration.remove() }
     }
 
+    fun subscribeToGlobalSettings(userId: String): Flow<GlobalSettings?> = callbackFlow {
+        val docRef = firestore.collection("user_settings").document(userId)
+        val registration = docRef.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                trySend(null)
+                return@addSnapshotListener
+            }
+            val settings = snapshot?.toObject(UserSettings::class.java)?.globalSettings
+            trySend(settings)
+        }
+        awaitClose { registration.remove() }
+    }
+
     suspend fun saveUserRepos(userId: String, repos: List<Repository>) {
         val docRef = firestore.collection("user_settings").document(userId)
         docRef.set(mapOf("repos" to repos), SetOptions.merge()).await()
+    }
+
+    suspend fun saveGlobalSettings(userId: String, settings: GlobalSettings) {
+        val docRef = firestore.collection("user_settings").document(userId)
+        docRef.set(mapOf("globalSettings" to settings), SetOptions.merge()).await()
     }
 
     suspend fun getRepos(userId: String): List<Repository> {
         val docRef = firestore.collection("user_settings").document(userId)
         val snapshot = docRef.get().await()
         return snapshot.toObject(UserSettings::class.java)?.repos ?: emptyList()
+    }
+
+    suspend fun getGlobalSettings(userId: String): GlobalSettings? {
+        val docRef = firestore.collection("user_settings").document(userId)
+        val snapshot = docRef.get().await()
+        return snapshot.toObject(UserSettings::class.java)?.globalSettings
     }
 
     // User Profile Methods

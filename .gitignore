@@ -37,3 +37,5 @@ androidApp/signing/*.jar
 *.njsproj
 *.sln
 *.sw?
+/LastPrompt.txt
+/uibug.jpg

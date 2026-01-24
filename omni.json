@@ -3,8 +3,6 @@
         "C:\\Users\\me\\Desktop\\QAVerify&Track-Assets"
     ],
     "software": [
-        "GitHub.cli",
-        "ARP\\Machine\\X64\\Git_is1",
         "17.0.16.8",
         "Microsoft.DotNet.SDK.10",
         "14.0.33728.0",
@@ -19,6 +17,8 @@
         "Codeium.Windsurf",
         "Google.CloudSDK",
         "Google.AndroidStudio",
-        "ARP\\Machine\\X64\\Android Studio"
-    ]
+        "ARP\\Machine\\X64\\Android Studio",
+        "Git.Git"
+    ],
+    "app_state_paths": []
 }

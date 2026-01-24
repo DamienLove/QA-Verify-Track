@@ -70,6 +70,14 @@ const resolveGithubToken = (repo: Repository, globalSettings?: GlobalSettings) =
   return repo.githubToken || globalSettings?.globalGithubToken || '';
 };
 
+const describeGithubError = (error: unknown) => {
+  const status = (error as any)?.status;
+  if (status === 401) return 'GitHub token invalid or expired.';
+  if (status === 403) return 'GitHub token lacks repo/issues access or is rate-limited.';
+  if (status === 404) return 'Repository not found or access denied.';
+  return 'Failed to reach GitHub. Check token and network.';
+};
+
 // --- Shared UI Components ---
 
 const BottomNav = ({ onNotesClick }: { onNotesClick: () => void }) => {
@@ -205,15 +213,20 @@ const HomePage = ({
     onNotesClick: () => void
 }) => {
     const [repoStats, setRepoStats] = useState<Record<string, { issues: number; prs: number }>>({});
+    const [repoStatsError, setRepoStatsError] = useState<Record<string, string>>({});
 
     useEffect(() => {
         let isMounted = true;
         const fetchStats = async () => {
             const stats: Record<string, { issues: number; prs: number }> = {};
+            const errors: Record<string, string> = {};
 
             await Promise.all(repos.map(async (repo) => {
                 const token = resolveGithubToken(repo, globalSettings);
-                if (!token) return;
+                if (!token) {
+                    errors[repo.id] = 'Missing GitHub token.';
+                    return;
+                }
 
                 try {
                     // Use parallel fetching with explicit token to avoid singleton race conditions
@@ -225,11 +238,13 @@ const HomePage = ({
                     stats[repo.id] = { issues, prs: prCount };
                 } catch (error) {
                     console.error(`Failed to fetch stats for ${repo.owner}/${repo.name}`, error);
+                    errors[repo.id] = describeGithubError(error);
                 }
             }));
 
             if (isMounted) {
                 setRepoStats(stats);
+                setRepoStatsError(errors);
             }
         };
 
@@ -237,6 +252,7 @@ const HomePage = ({
             fetchStats();
         } else {
             setRepoStats({});
+            setRepoStatsError({});
         }
 
         return () => {
@@ -292,6 +308,11 @@ const HomePage = ({
                                         <span>Issues: <span className="font-semibold text-slate-900 dark:text-white">{repoStats[repo.id]?.issues ?? '—'}</span></span>
                                         <span>PRs: <span className="font-semibold text-slate-900 dark:text-white">{repoStats[repo.id]?.prs ?? '—'}</span></span>
                                     </div>
+                                    {repoStatsError[repo.id] && (
+                                        <p className="mt-1 text-[10px] text-red-500 dark:text-red-400">
+                                            {repoStatsError[repo.id]}
+                                        </p>
+                                    )}
                                 </div>
                                 <Link to={`/dashboard?repo=${repo.id}`} aria-label="View repository dashboard" className="flex items-center justify-center size-10 rounded-full bg-gray-100 dark:bg-surface-dark-lighter backdrop-blur-sm text-primary">
                                     <span className="material-symbols-outlined">arrow_forward</span>
@@ -1096,7 +1117,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             setPrs(fetchedPrs);
         } catch (error) {
             console.error("Sync failed", error);
-            setSyncError('Failed to sync GitHub data. Check your token and network.');
+            setSyncError(describeGithubError(error));
         } finally {
             setLoading(false);
         }

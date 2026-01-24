@@ -3,7 +3,9 @@ package com.qa.verifyandtrack.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qa.verifyandtrack.app.data.AppContainer
+import com.qa.verifyandtrack.app.data.resolveGithubToken
 import com.qa.verifyandtrack.app.data.model.Comment
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import com.qa.verifyandtrack.app.data.model.PullRequestDetail
 import com.qa.verifyandtrack.app.data.model.PullRequestFile
 import com.qa.verifyandtrack.app.data.model.Repository
@@ -42,6 +44,9 @@ class PullRequestDetailViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    private val _globalSettings = MutableStateFlow<GlobalSettings?>(null)
+    val globalSettings: StateFlow<GlobalSettings?> = _globalSettings
+
     private var currentRepo: Repository? = null
     private var currentPullNumber: Int? = null
 
@@ -68,11 +73,13 @@ class PullRequestDetailViewModel : ViewModel() {
                 _isLoading.value = false
                 return@launch
             }
+            val settings = repoRepository.getGlobalSettings(userId)
+            _globalSettings.value = settings
             currentRepo = repo
             currentPullNumber = pullNumber
-            val token = repo.githubToken
+            val token = resolveGithubToken(repo, settings)
             if (token.isNullOrBlank()) {
-                _error.value = "Missing GitHub token for ${repo.displayLabel}."
+                _error.value = "Missing GitHub token. Configure a global or repo token."
                 _isLoading.value = false
                 return@launch
             }
@@ -110,9 +117,9 @@ class PullRequestDetailViewModel : ViewModel() {
             _commentError.value = "Comment cannot be empty."
             return
         }
-        val token = repo.githubToken
+        val token = resolveGithubToken(repo, _globalSettings.value)
         if (token.isNullOrBlank()) {
-            _commentError.value = "Missing GitHub token for ${repo.displayLabel}."
+            _commentError.value = "Missing GitHub token. Configure a global or repo token."
             return
         }
 

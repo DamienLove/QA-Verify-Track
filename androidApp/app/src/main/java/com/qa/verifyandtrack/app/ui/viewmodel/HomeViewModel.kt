@@ -3,6 +3,8 @@ package com.qa.verifyandtrack.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.qa.verifyandtrack.app.data.AppContainer
+import com.qa.verifyandtrack.app.data.resolveGithubToken
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import com.qa.verifyandtrack.app.data.model.Repository
 import com.qa.verifyandtrack.app.data.model.TodoItem
 import com.qa.verifyandtrack.app.data.model.UserProfile
@@ -36,6 +38,9 @@ class HomeViewModel : ViewModel() {
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile: StateFlow<UserProfile?> = _userProfile
 
+    private val _globalSettings = MutableStateFlow<GlobalSettings?>(null)
+    val globalSettings: StateFlow<GlobalSettings?> = _globalSettings
+
     init {
         viewModelScope.launch {
             authRepository.observeAuthState()
@@ -45,6 +50,17 @@ class HomeViewModel : ViewModel() {
                 .collect { repos ->
                     _repos.value = repos
                     loadTodos(repos)
+                }
+        }
+
+        viewModelScope.launch {
+            authRepository.observeAuthState()
+                .flatMapLatest { user ->
+                    if (user == null) flowOf(null) else repoRepository.observeGlobalSettings(user.uid)
+                }
+                .collect { settings ->
+                    _globalSettings.value = settings
+                    loadTodos(_repos.value)
                 }
         }
 
@@ -86,9 +102,10 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+            val settings = _globalSettings.value
             val items = withContext(Dispatchers.IO) {
                 repos.map { repo ->
-                    val token = repo.githubToken
+                    val token = resolveGithubToken(repo, settings)
                     val issueCount = if (!token.isNullOrBlank()) {
                         gitHubRepository.initialize(token)
                         runCatching { gitHubRepository.getOpenIssueCount(repo.owner, repo.name) }.getOrDefault(0)

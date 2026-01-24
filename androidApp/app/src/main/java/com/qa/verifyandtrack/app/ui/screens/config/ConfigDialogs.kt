@@ -2,8 +2,14 @@ package com.qa.verifyandtrack.app.ui.screens.config
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -11,10 +17,50 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.qa.verifyandtrack.app.data.model.AppConfig
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import com.qa.verifyandtrack.app.data.model.Repository
 import java.util.UUID
+
+@Composable
+fun GlobalSettingsDialog(
+    initial: GlobalSettings?,
+    onDismiss: () -> Unit,
+    onSave: (GlobalSettings) -> Unit
+) {
+    var token by remember { mutableStateOf(initial?.globalGithubToken ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Global GitHub Settings") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "This token will be used for repositories that do not have a specific token configured.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text("Global GitHub Token") },
+                    placeholder = { Text("ghp_...") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(GlobalSettings(globalGithubToken = token.trim().ifBlank { null }))
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
 
 @Composable
 fun RepoFormDialog(
@@ -26,6 +72,7 @@ fun RepoFormDialog(
     var owner by remember { mutableStateOf(initial?.owner ?: "") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var token by remember { mutableStateOf(initial?.githubToken ?: "") }
+    var useCustomToken by remember { mutableStateOf(initial?.useCustomToken ?: true) }
     var avatarUrl by remember { mutableStateOf(initial?.avatarUrl ?: "") }
     var projectsInput by remember {
         mutableStateOf(initial?.projects?.joinToString(", ").orEmpty())
@@ -39,7 +86,34 @@ fun RepoFormDialog(
                 OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display Name") })
                 OutlinedTextField(value = owner, onValueChange = { owner = it }, label = { Text("Owner") })
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Repo Name") })
-                OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text("GitHub Token") })
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Use repo-specific token", style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked = useCustomToken,
+                        onCheckedChange = { useCustomToken = it }
+                    )
+                }
+
+                if (useCustomToken) {
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { token = it },
+                        label = { Text("GitHub Token") },
+                        placeholder = { Text("ghp_...") }
+                    )
+                } else {
+                    Text(
+                        "Using global GitHub token if available.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 OutlinedTextField(value = avatarUrl, onValueChange = { avatarUrl = it }, label = { Text("Avatar URL") })
                 OutlinedTextField(
                     value = projectsInput,
@@ -61,6 +135,7 @@ fun RepoFormDialog(
                     name = name.trim(),
                     displayName = displayName.trim().ifBlank { null },
                     githubToken = token.trim().ifBlank { null },
+                    useCustomToken = useCustomToken,
                     avatarUrl = avatarUrl.trim().ifBlank { null },
                     apps = initial?.apps ?: emptyList(),
                     isConnected = initial?.isConnected ?: true,

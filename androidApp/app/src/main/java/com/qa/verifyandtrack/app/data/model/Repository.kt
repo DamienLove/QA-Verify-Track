@@ -13,6 +13,7 @@ data class Repository(
     val displayName: String? = null,
     val apiEndpoint: String? = null,
     val githubToken: String? = null,
+    val useCustomToken: Boolean = true,
     val avatarUrl: String? = null,
     val apps: List<AppConfig> = emptyList(),
     val isConnected: Boolean = false,

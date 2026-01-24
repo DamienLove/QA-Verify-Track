@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.qa.verifyandtrack.app.data.AppContainer
 import com.qa.verifyandtrack.app.data.model.AppConfig
 import com.qa.verifyandtrack.app.data.model.Repository
+import com.qa.verifyandtrack.app.data.model.GlobalSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -17,6 +18,9 @@ class ConfigViewModel : ViewModel() {
 
     private val _repos = MutableStateFlow<List<Repository>>(emptyList())
     val repos: StateFlow<List<Repository>> = _repos
+
+    private val _globalSettings = MutableStateFlow<GlobalSettings?>(null)
+    val globalSettings: StateFlow<GlobalSettings?> = _globalSettings
 
     private val _selectedRepo = MutableStateFlow<Repository?>(null)
     val selectedRepo: StateFlow<Repository?> = _selectedRepo
@@ -34,10 +38,31 @@ class ConfigViewModel : ViewModel() {
                     _repos.value = repos
                 }
         }
+
+        viewModelScope.launch {
+            authRepository.observeAuthState()
+                .flatMapLatest { user ->
+                    if (user == null) flowOf(null) else repoRepository.observeGlobalSettings(user.uid)
+                }
+                .collect { settings ->
+                    _globalSettings.value = settings
+                }
+        }
     }
 
     fun selectRepo(repo: Repository?) {
         _selectedRepo.value = repo
+    }
+
+    fun saveGlobalSettings(settings: GlobalSettings) {
+        viewModelScope.launch {
+            val userId = authRepository.currentUser()?.uid
+            if (userId == null) {
+                _error.value = "No authenticated user."
+                return@launch
+            }
+            repoRepository.saveGlobalSettings(userId, settings)
+        }
     }
 
     fun addRepo(repo: Repository) {
