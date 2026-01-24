@@ -984,7 +984,6 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     }, [activeToken]);
 
     // Real Data State
-    const [issues, setIssues] = useState<Issue[]>([]);
     const [allIssues, setAllIssues] = useState<Issue[]>([]);
     const [issueBuildMap, setIssueBuildMap] = useState<Record<number, number>>({});
     const [issueVerifyFixMap, setIssueVerifyFixMap] = useState<Record<number, number>>({});
@@ -1123,9 +1122,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
         }
     };
 
-    useEffect(() => {
+    const issues = React.useMemo(() => {
         const targetBuild = parseBuildNumber(buildNumber);
-        setIssues(allIssues.filter(issue => {
+        return allIssues.filter(issue => {
             const verifyBuild = issueVerifyFixMap[issue.id];
             const statusBuild = issueBuildMap[issue.id];
             if (targetBuild == null) {
@@ -1138,7 +1137,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 return false;
             }
             return true;
-        }));
+        });
     }, [buildNumber, allIssues, issueBuildMap, issueVerifyFixMap]);
 
     useEffect(() => {
