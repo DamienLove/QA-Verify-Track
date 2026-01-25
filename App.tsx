@@ -1000,6 +1000,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     const [issueVerifyFixMap, setIssueVerifyFixMap] = useState<Record<number, number>>({});
     const [prs, setPrs] = useState<PullRequest[]>([]);
     const [loading, setLoading] = useState(false);
+    const [syncType, setSyncType] = useState<'github' | 'store' | null>(null);
     
     // State for PR actions
     const [prProcessing, setPrProcessing] = useState<number | null>(null);
@@ -1060,10 +1061,12 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
     // fetchStoreBuild: when true, try to auto-populate build number from stored app config (no external store fetch to avoid CORS)
     const handleSync = async (fetchStoreBuild: boolean = false) => {
         setLoading(true);
+        setSyncType(fetchStoreBuild ? 'store' : 'github');
         setSyncError('');
         if (!activeToken) {
             setSyncError('Missing GitHub token. Configure a global or repo token.');
             setLoading(false);
+            setSyncType(null);
             return;
         }
         if (fetchStoreBuild) {
@@ -1130,6 +1133,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
             setSyncError(describeGithubError(error));
         } finally {
             setLoading(false);
+            setSyncType(null);
         }
     };
 
@@ -1915,18 +1919,24 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => handleSync(false)}
+                                    disabled={loading}
                                     aria-label="Sync with GitHub"
-                                    className="bg-white dark:bg-surface-dark-lighter backdrop-blur-sm border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
+                                    className="bg-white dark:bg-surface-dark-lighter backdrop-blur-sm border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1 disabled:opacity-50"
                                 >
-                                    <span className="material-symbols-outlined">sync</span>
+                                    <span className={`material-symbols-outlined ${loading && syncType === 'github' ? 'animate-spin' : ''}`}>sync</span>
                                     <span className="text-xs font-bold hidden sm:inline">Sync</span>
                                 </button>
                                 <button
                                     onClick={() => handleSync(true)}
+                                    disabled={loading}
                                     aria-label="Sync with Store"
-                                    className="bg-white dark:bg-surface-dark-lighter backdrop-blur-sm border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1"
+                                    className="bg-white dark:bg-surface-dark-lighter backdrop-blur-sm border border-gray-200 dark:border-white/5 rounded-lg px-3 py-3 hover:text-primary transition-colors flex items-center gap-1 disabled:opacity-50"
                                 >
-                                    <span className="material-symbols-outlined">system_update_alt</span>
+                                    {loading && syncType === 'store' ? (
+                                        <div className="size-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <span className="material-symbols-outlined">system_update_alt</span>
+                                    )}
                                     <span className="text-xs font-bold hidden sm:inline">Store</span>
                                 </button>
                             </div>
