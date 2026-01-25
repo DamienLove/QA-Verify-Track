@@ -88,6 +88,102 @@ const getIssueComments = async (owner: string, repo: string, issueNumber: number
   return data;
 };
 
+const getIssuesWithCommentsGraphQL = async (owner: string, repo: string, state: 'open' | 'closed'): Promise<Issue[]> => {
+  const api = await getOctokit();
+  const allIssues: Issue[] = [];
+  let hasNextPage = true;
+  let cursor: string | null = null;
+  let loopCount = 0;
+  const MAX_LOOPS = 20;
+  const stateParam = state === 'open' ? 'OPEN' : 'CLOSED';
+
+  while (hasNextPage && loopCount < MAX_LOOPS) {
+    loopCount++;
+    const response: any = await api.request('POST /graphql', {
+      query: `
+        query ($owner: String!, $repo: String!, $cursor: String, $states: [IssueState!]) {
+          repository(owner: $owner, name: $repo) {
+            issues(first: 50, states: $states, orderBy: {field: UPDATED_AT, direction: DESC}, after: $cursor) {
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+              nodes {
+                databaseId
+                number
+                title
+                body
+                state
+                createdAt
+                updatedAt
+                author {
+                  login
+                  avatarUrl
+                }
+                labels(first: 10) {
+                  nodes {
+                    name
+                  }
+                }
+                comments(last: 50) {
+                  totalCount
+                  nodes {
+                    databaseId
+                    body
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+      variables: {
+        owner,
+        repo,
+        cursor,
+        states: [stateParam]
+      }
+    });
+
+    if (response.data.errors) {
+      console.error("GraphQL Errors while fetching issues:", response.data.errors);
+      if (!response.data.data) break;
+    }
+
+    const data = response.data.data?.repository?.issues;
+    if (!data) break;
+
+    const mapped = data.nodes.map((i: any) => ({
+      id: i.databaseId,
+      number: i.number,
+      title: i.title,
+      description: i.body || '',
+      state: i.state.toLowerCase(),
+      priority: mapPriority(i.labels.nodes),
+      labels: i.labels.nodes.map((l: any) => l.name),
+      type: i.labels.nodes.find((l: any) => l.name === 'bug' || l.name === 'feature' || l.name === 'ui')?.name || 'bug',
+      createdAt: i.createdAt,
+      updatedAt: i.updatedAt,
+      commentsCount: i.comments.totalCount,
+      reporter: {
+        name: i.author?.login || 'Unknown',
+        avatar: i.author?.avatarUrl || ''
+      },
+      comments: i.comments.nodes.map((c: any) => ({
+        id: String(c.databaseId),
+        text: c.body || '',
+        buildNumber: undefined
+      }))
+    }));
+
+    allIssues.push(...mapped);
+    hasNextPage = data.pageInfo.hasNextPage;
+    cursor = data.pageInfo.endCursor;
+  }
+
+  return allIssues;
+};
+
 export const githubService = {
   initialize: (token: string) => {
     currentToken = token;
@@ -112,6 +208,11 @@ export const githubService = {
     const api = await getOctokit();
 
     try {
+      if (includeComments) {
+        // Optimized path using GraphQL to fetch issues and comments in one go
+        return await getIssuesWithCommentsGraphQL(owner, repo, state);
+      }
+
       const response = await api.paginate(api.issues.listForRepo, {
         owner,
         repo,
