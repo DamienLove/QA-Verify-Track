@@ -118,6 +118,13 @@ function Post-GitHubComment {
     }
 }
 
+function Escape-PsValue {
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) { return "" }
+    # Escape ` to `` first (to avoid escaping the escapes), then $ to `$, then " to "" (standard PowerShell string escaping)
+    return $Value.Replace('`', '``').Replace('$', '`$').Replace('"', '""')
+}
+
 # 1. Run AI Fix
 $prompt = @"
 You are an AI coding agent. Fix the issue in the repository and leave the workspace ready to build.
@@ -133,14 +140,14 @@ $Description
 "@
 
 $values = @{
-    repoOwner   = $RepoOwner
-    repoName    = $RepoName
-    issueNumber = $IssueNumber
-    title       = $Title
-    description = $Description
-    buildNumber = $BuildNumber
-    issueUrl    = $IssueUrl
-    prompt      = $prompt
+    repoOwner   = Escape-PsValue $RepoOwner
+    repoName    = Escape-PsValue $RepoName
+    issueNumber = Escape-PsValue $IssueNumber
+    title       = Escape-PsValue $Title
+    description = Escape-PsValue $Description
+    buildNumber = Escape-PsValue $BuildNumber
+    issueUrl    = Escape-PsValue $IssueUrl
+    prompt      = Escape-PsValue $prompt
 }
 
 $aiTemplate = Resolve-AICommandTemplate
