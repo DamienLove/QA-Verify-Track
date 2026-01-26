@@ -23,29 +23,6 @@ function Expand-Template {
     return $result
 }
 
-function Resolve-AICommandTemplate {
-    $aiTemplate = $env:QAVT_AI_COMMAND
-    if (-not [string]::IsNullOrWhiteSpace($aiTemplate)) {
-        return $aiTemplate
-    }
-
-    $provider = $env:QAVT_AI_PROVIDER
-    if (-not [string]::IsNullOrWhiteSpace($provider)) {
-        switch ($provider.ToLower()) {
-            "claude" { return "claude ""{prompt}""" }
-            "gemini" { return "gemini ""{prompt}""" }
-            "codex" { return "codex ""{prompt}""" }
-            "openai" { return "codex ""{prompt}""" }
-        }
-    }
-
-    if (Get-Command codex -ErrorAction SilentlyContinue) { return "codex ""{prompt}""" }
-    if (Get-Command claude -ErrorAction SilentlyContinue) { return "claude ""{prompt}""" }
-    if (Get-Command gemini -ErrorAction SilentlyContinue) { return "gemini ""{prompt}""" }
-
-    return "codex ""{prompt}"""
-}
-
 function Has-GitChanges {
     $status = git status --porcelain 2>$null
     return -not [string]::IsNullOrWhiteSpace($status)
@@ -139,25 +116,56 @@ Description:
 $Description
 "@
 
-$values = @{
-    repoOwner   = Escape-PsValue $RepoOwner
-    repoName    = Escape-PsValue $RepoName
-    issueNumber = Escape-PsValue $IssueNumber
-    title       = Escape-PsValue $Title
-    description = Escape-PsValue $Description
-    buildNumber = Escape-PsValue $BuildNumber
-    issueUrl    = Escape-PsValue $IssueUrl
-    prompt      = Escape-PsValue $prompt
-}
+$aiTemplate = $env:QAVT_AI_COMMAND
 
-$aiTemplate = Resolve-AICommandTemplate
-$aiCommand = Expand-Template -Template $aiTemplate -Values $values
-Write-Host "Running AI command: $aiCommand"
-Push-Location $repoRoot
-try {
-    Invoke-Expression $aiCommand
-} finally {
-    Pop-Location
+if (-not [string]::IsNullOrWhiteSpace($aiTemplate)) {
+    # Custom template - Legacy path (Requires escaping and IEX)
+    $values = @{
+        repoOwner   = Escape-PsValue $RepoOwner
+        repoName    = Escape-PsValue $RepoName
+        issueNumber = Escape-PsValue $IssueNumber
+        title       = Escape-PsValue $Title
+        description = Escape-PsValue $Description
+        buildNumber = Escape-PsValue $BuildNumber
+        issueUrl    = Escape-PsValue $IssueUrl
+        prompt      = Escape-PsValue $prompt
+    }
+
+    $aiCommand = Expand-Template -Template $aiTemplate -Values $values
+    Write-Host "Running AI command (Custom Template): $aiCommand"
+    Push-Location $repoRoot
+    try {
+        Invoke-Expression $aiCommand
+    } finally {
+        Pop-Location
+    }
+} else {
+    # Default Provider - Secure Execution (Direct call)
+    $exe = $null
+    $provider = $env:QAVT_AI_PROVIDER
+    if (-not [string]::IsNullOrWhiteSpace($provider)) {
+         switch ($provider.ToLower()) {
+            "claude" { $exe = "claude" }
+            "gemini" { $exe = "gemini" }
+            "codex" { $exe = "codex" }
+            "openai" { $exe = "codex" }
+        }
+    }
+
+    if (-not $exe) {
+        if (Get-Command codex -ErrorAction SilentlyContinue) { $exe = "codex" }
+        elseif (Get-Command claude -ErrorAction SilentlyContinue) { $exe = "claude" }
+        elseif (Get-Command gemini -ErrorAction SilentlyContinue) { $exe = "gemini" }
+        else { $exe = "codex" }
+    }
+
+    Write-Host "Running AI command (Provider: $exe)..."
+    Push-Location $repoRoot
+    try {
+        & $exe $prompt
+    } finally {
+        Pop-Location
+    }
 }
 
 $requireChange = $env:QAVT_REQUIRE_CODE_CHANGE
