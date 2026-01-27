@@ -1082,8 +1082,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 githubService.getPullRequests(repo.owner, repo.name)
             ]);
 
-            const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]*(?:build\s*)?v?\s*(\d+)\b/gi;
-            const verifyFixRegex = /\bverify\s*fix(?:es)?\b[^\d]*v?\s*(\d+)\b/gi;
+            // SECURITY: Use stricter regex to prevent ReDoS and ensure logic integrity (avoid matching across sentences)
+            const statusRegex = /\b(open|closed|blocked|fixed)\b[\s:,-]*(?:in\s+)?(?:build\s+)?v?\s*(\d+)\b/gi;
+            const verifyFixRegex = /\bverify\s*fix(?:es)?\b[\s:,-]*(?:in\s+)?(?:build\s+)?v?\s*(\d+)\b/gi;
             const statusBuildMap: Record<number, number> = {};
             const verifyFixBuildMap: Record<number, number> = {};
 
