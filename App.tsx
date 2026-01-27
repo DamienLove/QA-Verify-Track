@@ -571,10 +571,13 @@ const ConfigurationPage = ({
                             </div>
                             <div className="space-y-2 qavt-theme-picker">
                                 <label className="text-sm font-medium text-slate-900 dark:text-white">Theme Color</label>
-                                <div className="grid grid-cols-5 gap-3 qavt-theme-grid">
+                                <div className="grid grid-cols-5 gap-3 qavt-theme-grid" role="radiogroup" aria-label="Theme selection">
                                     {themes.map(t => (
                                         <button
                                             key={t.id}
+                                            role="radio"
+                                            aria-checked={currentTheme === t.id}
+                                            aria-label={`Select ${t.name} theme`}
                                             onClick={() => changeTheme(t.id)}
                                             className={`qavt-theme-swatch w-full aspect-square rounded-lg border-2 ${currentTheme === t.id ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'} transition-all shadow-sm`}
                                             style={{ backgroundColor: t.colors.primary }}
