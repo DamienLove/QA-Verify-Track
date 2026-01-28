@@ -49,16 +49,25 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center cursor-pointer"
+      onClick={onClose}
+    >
       <div
-        className="bg-surface-dark rounded-lg shadow-2xl w-full max-w-md mx-4"
+        className="bg-surface-dark rounded-lg shadow-2xl w-full max-w-md mx-4 cursor-default"
         role="dialog"
         aria-modal="true"
         aria-labelledby="notes-modal-title"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 flex justify-between items-center border-b border-white/10">
           <h2 id="notes-modal-title" className="text-lg font-bold">Notes</h2>
-          <button onClick={onClose} aria-label="Close Notes">
+          <button
+            onClick={onClose}
+            aria-label="Close Notes"
+            title="Close (Esc)"
+            className="rounded-full p-1 hover:bg-white/10 transition-colors"
+          >
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -72,8 +81,14 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
           aria-labelledby="notes-modal-title"
           aria-describedby="notes-char-count"
         ></textarea>
-        <div id="notes-char-count" className="px-4 pb-4 text-right text-xs text-gray-500">
-          {notes.length}/{MAX_NOTE_LENGTH}
+        <div className="flex justify-between items-center px-4 pb-4">
+          <div className="flex items-center gap-1.5 opacity-80">
+            <span className="material-symbols-outlined text-[14px] text-green-500">check_circle</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Saved to device</span>
+          </div>
+          <div id="notes-char-count" className="text-right text-xs text-gray-500">
+            {notes.length}/{MAX_NOTE_LENGTH}
+          </div>
         </div>
       </div>
     </div>
