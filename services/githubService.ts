@@ -5,7 +5,10 @@ let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: Comment[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
+const issuesCache = new Map<string, { timestamp: number; data: Issue[] }>();
+const prsCache = new Map<string, { timestamp: number; data: PullRequest[] }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
+const CACHE_TTL = 10000; // 10 seconds (Rate limiting protection)
 
 const decodeBase64 = (value: string) => {
   if (typeof atob === "function") {
@@ -32,13 +35,13 @@ const encodeBase64 = (value: string) => {
 const getOctokit = async (token?: string): Promise<Octokit> => {
   if (token) {
     const { Octokit } = await import("@octokit/rest");
-    return new Octokit({ auth: token });
+    return new Octokit({ auth: token, request: { timeout: 15000 } });
   }
   if (octokit) return octokit;
   if (!currentToken) throw new Error("GitHub service not initialized. Please configure your token.");
 
   const { Octokit } = await import("@octokit/rest");
-  octokit = new Octokit({ auth: currentToken });
+  octokit = new Octokit({ auth: currentToken, request: { timeout: 15000 } });
   return octokit;
 };
 
@@ -189,6 +192,8 @@ export const githubService = {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
     statsCache.clear(); // Clear stats cache when switching tokens/users
+    issuesCache.clear();
+    prsCache.clear();
   },
 
   getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
@@ -205,12 +210,20 @@ export const githubService = {
   getIssueComments,
 
   getIssues: async (owner: string, repo: string, state: 'open' | 'closed' = 'open', includeComments = false): Promise<Issue[]> => {
+    const cacheKey = `${owner}/${repo}/${state}/${includeComments}`;
+    const cached = issuesCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+
     const api = await getOctokit();
 
     try {
       if (includeComments) {
         // Optimized path using GraphQL to fetch issues and comments in one go
-        return await getIssuesWithCommentsGraphQL(owner, repo, state);
+        const result = await getIssuesWithCommentsGraphQL(owner, repo, state);
+        issuesCache.set(cacheKey, { timestamp: Date.now(), data: result });
+        return result;
       }
 
       const response = await api.paginate(api.issues.listForRepo, {
@@ -252,6 +265,7 @@ export const githubService = {
         }));
       }
 
+      issuesCache.set(cacheKey, { timestamp: Date.now(), data: issues });
       return issues;
     } catch (e) {
       console.error("Failed to fetch issues", e);
@@ -260,6 +274,16 @@ export const githubService = {
   },
 
   getPullRequests: async (owner: string, repo: string, token?: string): Promise<PullRequest[]> => {
+    const cacheKey = `${owner}/${repo}`;
+
+    // SECURITY: Only use cache if using the global/default token to prevent data leakage.
+    if (!token) {
+      const cached = prsCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+      }
+    }
+
     const api = await getOctokit(token);
 
     try {
@@ -335,6 +359,9 @@ export const githubService = {
         cursor = data.pageInfo.endCursor;
       }
 
+      if (!token) {
+        prsCache.set(cacheKey, { timestamp: Date.now(), data: allPrs });
+      }
       return allPrs;
     } catch (e) {
       console.error("Failed to fetch PRs", e);
