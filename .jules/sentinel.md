@@ -9,3 +9,8 @@
 **Vulnerability:** User inputs lacked `maxLength` attributes, allowing potentially unlimited character input. This poses a Denial of Service (DoS) risk (client-side freezing, large payload transmission) and API errors when exceeding backend limits.
 **Learning:** React does not automatically enforce input limits. Explicit `maxLength` attributes are a simple, high-impact defense-in-depth measure.
 **Prevention:** Added `maxLength` to all `input` and `textarea` elements in `App.tsx` matching downstream API constraints.
+
+## 2024-05-24 - Permissions-Policy and Input Validation
+**Vulnerability:** The application lacked a `Permissions-Policy` header, leaving potentially sensitive browser features (camera, mic) accessible if XSS occurred. Also, input validation for `displayName` and `githubToken` relied solely on client-side `maxLength` attributes, which can be bypassed.
+**Learning:** React's controlled inputs respect `maxLength`, but logic-side validation is crucial for defense-in-depth, especially before persisting data to Firestore. `Permissions-Policy` provides a robust mechanism to disable unused features.
+**Prevention:** Added `Permissions-Policy` header to `firebase.json` and explicit length checks in `App.tsx`'s `saveRepo` function.
