@@ -5,6 +5,7 @@ let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: Comment[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
+const repoStatsCache = new Map<string, { timestamp: number; issues: number; prs: number }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
 const decodeBase64 = (value: string) => {
@@ -189,6 +190,7 @@ export const githubService = {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
     statsCache.clear(); // Clear stats cache when switching tokens/users
+    repoStatsCache.clear();
   },
 
   getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
@@ -598,6 +600,43 @@ export const githubService = {
           console.error("Auto-resolve (update branch) failed", e);
           return false;
       }
+  },
+
+  getRepositoryStats: async (owner: string, repo: string, token?: string): Promise<{ issues: number; prs: number }> => {
+    const cacheKey = `repo-stats-${owner}-${repo}`;
+    const cached = repoStatsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+      return { issues: cached.issues, prs: cached.prs };
+    }
+
+    const api = await getOctokit(token);
+
+    // Parallel fetch: 'repos.get' (Core API) + 'search' (Search API)
+    // Core API returns 'open_issues_count' which includes PRs.
+    // Search API fetches PR count only.
+    // This saves 1 Search API call compared to searching for issues AND PRs separately.
+    const [repoDetails, prCount] = await Promise.all([
+        api.repos.get({ owner, repo }),
+        // Check cache for PR count first since it might be used elsewhere
+        (async () => {
+            const prCacheKey = `pr-${owner}-${repo}`;
+            const prCached = statsCache.get(prCacheKey);
+            if (prCached && Date.now() - prCached.timestamp < STATS_CACHE_TTL) {
+                return prCached.count;
+            }
+            const prRes = await api.search.issuesAndPullRequests({
+                q: `repo:${owner}/${repo} is:pr is:open`,
+            });
+            statsCache.set(prCacheKey, { timestamp: Date.now(), count: prRes.data.total_count });
+            return prRes.data.total_count;
+        })()
+    ]);
+
+    const totalOpen = repoDetails.data.open_issues_count;
+    const issues = Math.max(0, totalOpen - prCount);
+
+    repoStatsCache.set(cacheKey, { timestamp: Date.now(), issues, prs: prCount });
+    return { issues, prs: prCount };
   },
 
   getOpenIssueCount: async (owner: string, repo: string, token?: string): Promise<number> => {
