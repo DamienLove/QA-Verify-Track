@@ -90,25 +90,25 @@ const BottomNav = ({ onNotesClick }: { onNotesClick: () => void }) => {
       location.pathname.startsWith('/issue')
   );
 
-  const getLinkClass = (isActive: boolean) => `flex flex-col items-center justify-center w-16 h-full gap-1 transition-colors ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`;
+  const getLinkClass = (isActive: boolean) => `flex flex-col items-center justify-center w-16 h-full gap-1 transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background-light dark:focus-visible:ring-offset-background-dark rounded-lg outline-none ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`;
 
   return (
     <nav className="fixed bottom-0 left-0 w-full bg-background-light/80 dark:bg-background-dark/90 backdrop-blur-lg border-t border-gray-200 dark:border-white/10 z-50 pb-safe">
       <div className="flex items-center justify-around h-16 max-w-md mx-auto">
-          <Link to="/" className={getLinkClass(isProjects)}>
-              <span className="material-symbols-outlined text-[24px]">grid_view</span>
+          <Link to="/" className={getLinkClass(isProjects)} aria-current={isProjects ? 'page' : undefined}>
+              <span className="material-symbols-outlined text-[24px]" aria-hidden="true">grid_view</span>
               <span className="text-[10px] font-bold">Projects</span>
           </Link>
           <button
               onClick={onNotesClick}
-              className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              className="flex flex-col items-center justify-center w-16 h-full gap-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background-light dark:focus-visible:ring-offset-background-dark rounded-lg outline-none"
               aria-label="Open Notes"
           >
-              <span className="material-symbols-outlined text-[24px]">description</span>
+              <span className="material-symbols-outlined text-[24px]" aria-hidden="true">description</span>
               <span className="text-[10px] font-medium">Notes</span>
           </button>
-          <Link to="/config" className={getLinkClass(isConfig)}>
-              <span className="material-symbols-outlined text-[24px]">settings</span>
+          <Link to="/config" className={getLinkClass(isConfig)} aria-current={isConfig ? 'page' : undefined}>
+              <span className="material-symbols-outlined text-[24px]" aria-hidden="true">settings</span>
               <span className="text-[10px] font-medium">Config</span>
           </Link>
       </div>
