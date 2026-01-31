@@ -3,8 +3,11 @@ import { Issue, PullRequest, Comment } from '../types';
 
 let octokit: Octokit | null = null;
 let currentToken: string | null = null;
+
 const commentsCache = new Map<string, { timestamp: string; data: Comment[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
+// Cache for combined stats { issues, prs }
+const repoStatsCache = new Map<string, { timestamp: number; data: { issues: number; prs: number } }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
 const decodeBase64 = (value: string) => {
@@ -184,11 +187,75 @@ const getIssuesWithCommentsGraphQL = async (owner: string, repo: string, state: 
   return allIssues;
 };
 
+// Standalone functions for stats logic
+const fetchOpenPullRequestCount = async (owner: string, repo: string, token?: string): Promise<number> => {
+  const cacheKey = `pr-${owner}-${repo}`;
+  const cached = statsCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+    return cached.count;
+  }
+
+  const api = await getOctokit(token);
+  const response = await api.search.issuesAndPullRequests({
+    q: `repo:${owner}/${repo} is:pr is:open`,
+  });
+
+  const count = response.data.total_count;
+  statsCache.set(cacheKey, { timestamp: Date.now(), count });
+  return count;
+};
+
+const fetchOpenIssueCount = async (owner: string, repo: string, token?: string): Promise<number> => {
+  const cacheKey = `issue-${owner}-${repo}`;
+  const cached = statsCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+    return cached.count;
+  }
+
+  const api = await getOctokit(token);
+  const response = await api.search.issuesAndPullRequests({
+    q: `repo:${owner}/${repo} is:issue is:open`,
+  });
+
+  const count = response.data.total_count;
+  statsCache.set(cacheKey, { timestamp: Date.now(), count });
+  return count;
+};
+
+const fetchRepositoryStats = async (owner: string, repo: string, token?: string): Promise<{ issues: number; prs: number }> => {
+  const cacheKey = `stats-${owner}-${repo}`;
+  const cached = repoStatsCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+    return cached.data;
+  }
+
+  const api = await getOctokit(token);
+
+  // Fetch total open items (issues + PRs) via Core API (cheap, high limit)
+  // and PR count via Search API (more expensive, lower limit)
+  const [repoDetails, prCount] = await Promise.all([
+    api.repos.get({ owner, repo }),
+    fetchOpenPullRequestCount(owner, repo, token)
+  ]);
+
+  const totalOpenItems = repoDetails.data.open_issues_count;
+  // Calculate issue count (total - prs)
+  // Ensure we don't go below zero due to potential API sync delays
+  const issuesCount = Math.max(0, totalOpenItems - prCount);
+
+  const data = { issues: issuesCount, prs: prCount };
+  repoStatsCache.set(cacheKey, { timestamp: Date.now(), data });
+
+  return data;
+};
+
+
 export const githubService = {
   initialize: (token: string) => {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
     statsCache.clear(); // Clear stats cache when switching tokens/users
+    repoStatsCache.clear();
   },
 
   getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
@@ -600,35 +667,7 @@ export const githubService = {
       }
   },
 
-  getOpenIssueCount: async (owner: string, repo: string, token?: string): Promise<number> => {
-    const cacheKey = `issue-${owner}-${repo}`;
-    const cached = statsCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
-      return cached.count;
-    }
-
-    const api = await getOctokit(token);
-    const response = await api.search.issuesAndPullRequests({
-      q: `repo:${owner}/${repo} is:issue is:open`,
-    });
-
-    statsCache.set(cacheKey, { timestamp: Date.now(), count: response.data.total_count });
-    return response.data.total_count;
-  },
-
-  getOpenPullRequestCount: async (owner: string, repo: string, token?: string): Promise<number> => {
-    const cacheKey = `pr-${owner}-${repo}`;
-    const cached = statsCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
-      return cached.count;
-    }
-
-    const api = await getOctokit(token);
-    const response = await api.search.issuesAndPullRequests({
-      q: `repo:${owner}/${repo} is:pr is:open`,
-    });
-
-    statsCache.set(cacheKey, { timestamp: Date.now(), count: response.data.total_count });
-    return response.data.total_count;
-  }
+  getOpenIssueCount: fetchOpenIssueCount,
+  getOpenPullRequestCount: fetchOpenPullRequestCount,
+  getRepositoryStats: fetchRepositoryStats
 };
