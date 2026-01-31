@@ -9,3 +9,8 @@
 **Vulnerability:** User inputs lacked `maxLength` attributes, allowing potentially unlimited character input. This poses a Denial of Service (DoS) risk (client-side freezing, large payload transmission) and API errors when exceeding backend limits.
 **Learning:** React does not automatically enforce input limits. Explicit `maxLength` attributes are a simple, high-impact defense-in-depth measure.
 **Prevention:** Added `maxLength` to all `input` and `textarea` elements in `App.tsx` matching downstream API constraints.
+
+## 2024-05-25 - Prompt Injection & Input Sanitization
+**Vulnerability:** User inputs (Issue Title, Description) were passed directly to the AI service for prompt construction, and to backend storage without sanitization. This created risks of Prompt Injection (manipulating LLM behavior) and potential control character injection.
+**Learning:** LLM-based features require specific input hygiene. While React prevents XSS, it doesn't prevent "semantic" injection into prompts or data pollution with control characters.
+**Prevention:** Implemented `sanitizeInput` in `services/security.ts` to strip control characters (0-31, 127) while preserving whitespace structure (newlines/tabs). Applied this sanitizer to all AI prompts and critical form inputs before storage/submission.

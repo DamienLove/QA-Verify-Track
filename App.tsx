@@ -5,7 +5,7 @@ import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
-import { isValidUrl } from './services/security';
+import { isValidUrl, sanitizeInput } from './services/security';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
 import { IssueCard } from './components/IssueCard';
@@ -442,31 +442,46 @@ const ConfigurationPage = ({
             return;
         }
 
+        // Sanitize inputs
+        const safeFormData = {
+            ...formData,
+            name: sanitizeInput(formData.name),
+            owner: sanitizeInput(formData.owner),
+            displayName: sanitizeInput(formData.displayName || ''),
+            githubToken: sanitizeInput(formData.githubToken || ''),
+            apps: (formData.apps || []).map(app => ({
+                ...app,
+                name: sanitizeInput(app.name),
+                playStoreUrl: sanitizeInput(app.playStoreUrl || ''),
+                buildNumber: sanitizeInput(app.buildNumber || '')
+            }))
+        };
+
         // Validate Owner (GitHub username format: alphanumeric, single hyphens, no start/end hyphen)
         const ownerRegex = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
-        if (!ownerRegex.test(formData.owner)) {
+        if (!ownerRegex.test(safeFormData.owner)) {
             setSaveError('Invalid owner name. Use only alphanumeric characters and single hyphens.');
             return;
         }
 
         // Validate Repo Name (alphanumeric, periods, underscores, hyphens)
         const repoRegex = /^[\w.-]+$/;
-        if (!repoRegex.test(formData.name)) {
+        if (!repoRegex.test(safeFormData.name)) {
             setSaveError('Invalid repository name. Use only alphanumeric characters, underscores, hyphens, and periods.');
             return;
         }
 
         // Validate Token (no whitespace)
-        if (formData.useCustomToken !== false && formData.githubToken) {
-            if (/\s/.test(formData.githubToken)) {
+        if (safeFormData.useCustomToken !== false && safeFormData.githubToken) {
+            if (/\s/.test(safeFormData.githubToken)) {
                 setSaveError('Token must not contain whitespace.');
                 return;
             }
         }
 
         // Validate App URLs (Security: Prevent XSS in Dashboard)
-        if (formData.apps) {
-            for (const app of formData.apps) {
+        if (safeFormData.apps) {
+            for (const app of safeFormData.apps) {
                 if (app.playStoreUrl && !isValidUrl(app.playStoreUrl)) {
                     setSaveError(`Invalid URL for app "${app.name || 'Unknown'}". Allowed protocols: http, https, market, itms-apps, itms-services.`);
                     return;
@@ -480,9 +495,9 @@ const ConfigurationPage = ({
         try {
             let updatedRepos;
             if (activeRepoId) {
-                updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...formData } as Repository : r);
+                updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...safeFormData } as Repository : r);
             } else {
-                updatedRepos = [...repos, { ...formData, isConnected: true } as Repository];
+                updatedRepos = [...repos, { ...safeFormData, isConnected: true } as Repository];
             }
 
             // Optimistically update local state for immediate UI feedback
@@ -2724,7 +2739,10 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
         setIsSubmitting(true);
         try {
             githubService.initialize(token);
-            const created = await githubService.createIssue(repo.id, { title, description: desc, labels: [] }, repo.owner, repo.name);
+            const safeTitle = sanitizeInput(title);
+            const safeDesc = sanitizeInput(desc);
+
+            const created = await githubService.createIssue(repo.id, { title: safeTitle, description: safeDesc, labels: [] }, repo.owner, repo.name);
             const tag = (buildNumber || '').trim();
             if (tag) {
                 try {
@@ -2741,8 +2759,8 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                         repoOwner: repo.owner,
                         repoName: repo.name,
                         issueNumber: created.number.toString(),
-                        title: created.title || title,
-                        description: desc || '',
+                        title: created.title || safeTitle,
+                        description: safeDesc || '',
                         buildNumber: tag
                     }).toString();
                     (window as any).QAVT_AUTO_FIX.issueCreated(payload);
