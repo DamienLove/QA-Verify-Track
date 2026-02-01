@@ -2049,6 +2049,13 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 {!loading && tab === 'prs' && (
                     <div className="space-y-3">
                         {prError && <div className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 text-xs px-3 py-2">{prError}</div>}
+                        {prs.length === 0 && !prError ? (
+                            <div className="text-center py-20 opacity-50">
+                                <span className="material-symbols-outlined text-6xl text-gray-600 mb-4" aria-hidden="true">source_notes</span>
+                                <p className="text-lg font-bold text-gray-500 dark:text-gray-400">No Open Pull Requests</p>
+                                <p className="text-sm text-gray-400">All caught up! Sync to check for updates.</p>
+                            </div>
+                        ) : null}
                         {prs.length > 0 && (
                             <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-surface-dark-lighter/80 p-3 shadow-sm">
                                 <div className="flex items-center gap-3">
