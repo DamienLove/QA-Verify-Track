@@ -612,13 +612,19 @@ const ConfigurationPage = ({
                             </button>
                         </div>
                         {repos.map(repo => (
-                            <div key={repo.id} onClick={() => startEdit(repo)} className="p-4 rounded-xl glass-card flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">
+                            <button
+                                key={repo.id}
+                                onClick={() => startEdit(repo)}
+                                type="button"
+                                aria-label={`Edit repository ${repo.displayName || repo.name}`}
+                                className="w-full text-left p-4 rounded-xl glass-card flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform"
+                            >
                                 <div>
                                     <h3 className="font-bold text-slate-900 dark:text-white">{repo.displayName || repo.name}</h3>
                                     <p className="text-xs text-gray-500">{repo.owner}/{repo.name}</p>
                                 </div>
-                                <span className="material-symbols-outlined text-gray-400">edit</span>
-                            </div>
+                                <span className="material-symbols-outlined text-gray-400" aria-hidden="true">edit</span>
+                            </button>
                         ))}
                     </section>
                 </main>
@@ -2195,7 +2201,13 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                     const isChecked = activeBuild ? checkedBuilds.includes(activeBuild) : false;
                                     const latestChecked = getLatestCheckedBuild(test);
                                     return (
-                                        <div key={test.id} onClick={() => toggleTest(test.id)} className={`group cursor-pointer flex items-start gap-2 p-2 rounded-xl border transition-all ${isChecked ? 'bg-primary/5 border-primary/20' : 'bg-white dark:bg-surface-dark-lighter border-gray-200 dark:border-white/5 hover:border-primary/30'}`}>
+                                        <button
+                                            key={test.id}
+                                            onClick={() => toggleTest(test.id)}
+                                            type="button"
+                                            aria-pressed={isChecked}
+                                            className={`w-full text-left group cursor-pointer flex items-start gap-2 p-2 rounded-xl border transition-all ${isChecked ? 'bg-primary/5 border-primary/20' : 'bg-white dark:bg-surface-dark-lighter border-gray-200 dark:border-white/5 hover:border-primary/30'}`}
+                                        >
                                             <div className={`mt-0.5 flex-shrink-0 size-5 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-primary border-primary text-black' : 'bg-transparent border-gray-400 dark:border-gray-500 group-hover:border-primary'}`}>
                                                 {isChecked && <span className="material-symbols-outlined text-sm font-bold">check</span>}
                                             </div>
@@ -2205,7 +2217,7 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                                                     <p className="text-[10px] text-gray-400 mt-1">Last checked on build #{latestChecked}</p>
                                                 )}
                                             </div>
-                                        </div>
+                                        </button>
                                     );
                                 })
                             )}
