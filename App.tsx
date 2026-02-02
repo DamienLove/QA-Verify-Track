@@ -576,6 +576,7 @@ const ConfigurationPage = ({
                                         <button
                                             key={t.id}
                                             onClick={() => changeTheme(t.id)}
+                                            aria-label={`Select ${t.name} theme`}
                                             className={`qavt-theme-swatch w-full aspect-square rounded-lg border-2 ${currentTheme === t.id ? 'border-slate-900 dark:border-white scale-110' : 'border-transparent'} transition-all shadow-sm`}
                                             style={{ backgroundColor: t.colors.primary }}
                                             title={t.name}
@@ -2759,8 +2760,9 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                                           type="button"
                                           role="switch"
                                           aria-checked={autoFixEnabled}
+                                          aria-label="Enable auto-fix on submit"
                                           onClick={() => handleAutoFixToggle(!autoFixEnabled)}
-                                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark ${
                                               autoFixEnabled ? 'bg-primary/90' : 'bg-white/15'
                                           }`}
                                       >
