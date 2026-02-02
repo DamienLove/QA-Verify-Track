@@ -5,7 +5,7 @@ import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
-import { isValidUrl } from './services/security';
+import { isValidUrl, sanitizeInput } from './services/security';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
 import { IssueCard } from './components/IssueCard';
@@ -478,11 +478,20 @@ const ConfigurationPage = ({
         setSaving(true);
 
         try {
+            // SECURITY: Sanitize inputs to remove control characters
+            const sanitizedData = {
+                ...formData,
+                name: sanitizeInput(formData.name || ''),
+                owner: sanitizeInput(formData.owner || ''),
+                displayName: sanitizeInput(formData.displayName || ''),
+                githubToken: sanitizeInput(formData.githubToken || '')
+            };
+
             let updatedRepos;
             if (activeRepoId) {
-                updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...formData } as Repository : r);
+                updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...sanitizedData } as Repository : r);
             } else {
-                updatedRepos = [...repos, { ...formData, isConnected: true } as Repository];
+                updatedRepos = [...repos, { ...sanitizedData, isConnected: true } as Repository];
             }
 
             // Optimistically update local state for immediate UI feedback
@@ -1066,8 +1075,9 @@ const Dashboard = ({ repos, user, globalSettings, onNotesClick }: { repos: Repos
                 githubService.getPullRequests(repo.owner, repo.name)
             ]);
 
-            const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]*(?:build\s*)?v?\s*(\d+)\b/gi;
-            const verifyFixRegex = /\bverify\s*fix(?:es)?\b[^\d]*v?\s*(\d+)\b/gi;
+            // SECURITY: Use bounded quantifier ({0,200}) instead of greedy * to prevent ReDoS while allowing flexible text
+            const statusRegex = /\b(open|closed|blocked|fixed)\b[^\d]{0,200}(?:build\s*)?v?\s*(\d+)\b/gi;
+            const verifyFixRegex = /\bverify\s*fix(?:es)?\b[^\d]{0,200}v?\s*(\d+)\b/gi;
             const statusBuildMap: Record<number, number> = {};
             const verifyFixBuildMap: Record<number, number> = {};
 
@@ -2708,7 +2718,10 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
         setIsSubmitting(true);
         try {
             githubService.initialize(token);
-            const created = await githubService.createIssue(repo.id, { title, description: desc, labels: [] }, repo.owner, repo.name);
+            // SECURITY: Sanitize user input to prevent injection
+            const cleanTitle = sanitizeInput(title);
+            const cleanDesc = sanitizeInput(desc);
+            const created = await githubService.createIssue(repo.id, { title: cleanTitle, description: cleanDesc, labels: [] }, repo.owner, repo.name);
             const tag = (buildNumber || '').trim();
             if (tag) {
                 try {
