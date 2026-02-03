@@ -49,10 +49,14 @@ const Notes = ({ isOpen, onClose, userId }: { isOpen: boolean; onClose: () => vo
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+      onClick={onClose}
+    >
       <div
         className="bg-surface-dark rounded-lg shadow-2xl w-full max-w-md mx-4"
         role="dialog"
+        onClick={(e) => e.stopPropagation()}
         aria-modal="true"
         aria-labelledby="notes-modal-title"
       >
