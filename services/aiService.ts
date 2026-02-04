@@ -1,4 +1,5 @@
 import type { GoogleGenAI } from "@google/genai";
+import { sanitizeInput } from "./security";
 
 // Prefer Vite env vars; fall back to Node env for tests/tooling.
 const getApiKey = () =>
@@ -28,9 +29,12 @@ export const aiService = {
     }
 
     try {
+      const sanitizedTitle = sanitizeInput(title, 256);
+      const sanitizedDesc = sanitizeInput(description, 5000);
+
       const response = await client.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `You are a QA Lead. Analyze this bug report and provide 3 concise bullet points: 1) Potential root cause, 2) Key verification step, 3) Severity assessment.\n\nBug: ${title}\nDetails: ${description}`,
+        contents: `You are a QA Lead. Analyze this bug report and provide 3 concise bullet points: 1) Potential root cause, 2) Key verification step, 3) Severity assessment.\n\nBug: ${sanitizedTitle}\nDetails: ${sanitizedDesc}`,
         config: {
           temperature: 0.2, // Low temperature for more analytical/consistent results
         },
@@ -50,9 +54,12 @@ export const aiService = {
       }
 
       try {
+        const sanitizedAppName = sanitizeInput(appName, 100);
+        const sanitizedDesc = sanitizeInput(description, 5000);
+
         const response = await client.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: `You are a QA Lead. Generate a checklist of 5-10 essential functional verification tests for a software project named "${appName}" with the following description/context: "${description}". Return ONLY the list of tests, one per line, without numbering or bullets.`,
+            contents: `You are a QA Lead. Generate a checklist of 5-10 essential functional verification tests for a software project named "${sanitizedAppName}" with the following description/context: "${sanitizedDesc}". Return ONLY the list of tests, one per line, without numbering or bullets.`,
             config: {
                 temperature: 0.4,
             },
