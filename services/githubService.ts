@@ -5,6 +5,7 @@ let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: Comment[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
+const repoStatsCache = new Map<string, { timestamp: number; stats: { issues: number; prs: number } }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
 const decodeBase64 = (value: string) => {
@@ -189,6 +190,7 @@ export const githubService = {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
     statsCache.clear(); // Clear stats cache when switching tokens/users
+    repoStatsCache.clear();
   },
 
   getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
@@ -630,5 +632,35 @@ export const githubService = {
 
     statsCache.set(cacheKey, { timestamp: Date.now(), count: response.data.total_count });
     return response.data.total_count;
+  },
+
+  getRepositoryStats: async (owner: string, repo: string, token?: string): Promise<{ issues: number; prs: number }> => {
+    const cacheKey = `${owner}/${repo}`;
+    const cached = repoStatsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+      return cached.stats;
+    }
+
+    const api = await getOctokit(token);
+
+    // Parallel fetch: repos.get gives total open count (issues + PRs), search gives PR count
+    const [repoDetails, prSearch] = await Promise.all([
+      api.repos.get({ owner, repo }),
+      api.search.issuesAndPullRequests({
+        q: `repo:${owner}/${repo} is:pr is:open`,
+        per_page: 1 // Optimization: We only need total_count
+      })
+    ]);
+
+    const totalOpenCount = repoDetails.data.open_issues_count;
+    const prCount = prSearch.data.total_count;
+
+    // totalOpenCount includes both issues and PRs
+    const issueCount = Math.max(0, totalOpenCount - prCount);
+
+    const stats = { issues: issueCount, prs: prCount };
+    repoStatsCache.set(cacheKey, { timestamp: Date.now(), stats });
+
+    return stats;
   }
 };
