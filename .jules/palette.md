@@ -17,3 +17,7 @@
 ## 2024-05-25 - Persistent Bottom Navigation State
 **Learning:** For apps with a persistent bottom bar, relying on hardcoded active states confuses users when navigating to "secondary" top-level pages (like Config). Users expect the navigation bar to accurately reflect their location.
 **Action:** Use `useLocation` to dynamically determine the active tab in global navigation components. Ensure persistent navigation elements remain visible on all top-level destinations to prevent "dead ends".
+
+## 2024-05-26 - Navigation Accessibility & Feedback
+**Learning:** Highlighting the active link visually is not enough; screen reader users need `aria-current="page"` to know which navigation item is currently active. Also, adding `active:scale-95` provides essential tactile feedback on mobile devices, making the app feel more responsive.
+**Action:** Always add `aria-current="page"` to the active link in navigation menus and implement `active` scale transforms on interactive elements for better touch feedback.
