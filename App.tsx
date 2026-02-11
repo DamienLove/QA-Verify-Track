@@ -5,7 +5,7 @@ import { githubService } from './services/githubService';
 import { auth, firebaseService } from './services/firebase';
 import { aiService } from './services/aiService';
 import { themeService, themes } from './services/themeService';
-import { isValidUrl } from './services/security';
+import { isValidUrl, sanitizeInput } from './services/security';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User } from 'firebase/auth';
 import Notes from './components/Notes';
 import { IssueCard } from './components/IssueCard';
@@ -437,28 +437,37 @@ const ConfigurationPage = ({
     }
 
     const saveRepo = async () => {
-        if (!formData.name || !formData.owner) {
+        // Sanitize inputs
+        const cleanedData = {
+            ...formData,
+            name: sanitizeInput(formData.name || ''),
+            owner: sanitizeInput(formData.owner || ''),
+            displayName: sanitizeInput(formData.displayName || ''),
+            githubToken: sanitizeInput(formData.githubToken || '')
+        };
+
+        if (!cleanedData.name || !cleanedData.owner) {
             setSaveError('Owner and repo name are required.');
             return;
         }
 
         // Validate Owner (GitHub username format: alphanumeric, single hyphens, no start/end hyphen)
         const ownerRegex = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
-        if (!ownerRegex.test(formData.owner)) {
+        if (!ownerRegex.test(cleanedData.owner)) {
             setSaveError('Invalid owner name. Use only alphanumeric characters and single hyphens.');
             return;
         }
 
         // Validate Repo Name (alphanumeric, periods, underscores, hyphens)
         const repoRegex = /^[\w.-]+$/;
-        if (!repoRegex.test(formData.name)) {
+        if (!repoRegex.test(cleanedData.name)) {
             setSaveError('Invalid repository name. Use only alphanumeric characters, underscores, hyphens, and periods.');
             return;
         }
 
         // Validate Token (no whitespace)
-        if (formData.useCustomToken !== false && formData.githubToken) {
-            if (/\s/.test(formData.githubToken)) {
+        if (cleanedData.useCustomToken !== false && cleanedData.githubToken) {
+            if (/\s/.test(cleanedData.githubToken)) {
                 setSaveError('Token must not contain whitespace.');
                 return;
             }
@@ -480,9 +489,9 @@ const ConfigurationPage = ({
         try {
             let updatedRepos;
             if (activeRepoId) {
-                updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...formData } as Repository : r);
+                updatedRepos = repos.map(r => r.id === activeRepoId ? { ...r, ...cleanedData } as Repository : r);
             } else {
-                updatedRepos = [...repos, { ...formData, isConnected: true } as Repository];
+                updatedRepos = [...repos, { ...cleanedData, isConnected: true } as Repository];
             }
 
             // Optimistically update local state for immediate UI feedback
@@ -2708,7 +2717,9 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
         setIsSubmitting(true);
         try {
             githubService.initialize(token);
-            const created = await githubService.createIssue(repo.id, { title, description: desc, labels: [] }, repo.owner, repo.name);
+            const cleanTitle = sanitizeInput(title);
+            const cleanDesc = sanitizeInput(desc);
+            const created = await githubService.createIssue(repo.id, { title: cleanTitle, description: cleanDesc, labels: [] }, repo.owner, repo.name);
             const tag = (buildNumber || '').trim();
             if (tag) {
                 try {
@@ -2725,8 +2736,8 @@ const QuickIssuePage = ({ repos, globalSettings }: { repos: Repository[]; global
                         repoOwner: repo.owner,
                         repoName: repo.name,
                         issueNumber: created.number.toString(),
-                        title: created.title || title,
-                        description: desc || '',
+                        title: created.title || cleanTitle,
+                        description: cleanDesc || '',
                         buildNumber: tag
                     }).toString();
                     (window as any).QAVT_AUTO_FIX.issueCreated(payload);
