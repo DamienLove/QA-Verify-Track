@@ -9,3 +9,8 @@
 **Vulnerability:** User inputs lacked `maxLength` attributes, allowing potentially unlimited character input. This poses a Denial of Service (DoS) risk (client-side freezing, large payload transmission) and API errors when exceeding backend limits.
 **Learning:** React does not automatically enforce input limits. Explicit `maxLength` attributes are a simple, high-impact defense-in-depth measure.
 **Prevention:** Added `maxLength` to all `input` and `textarea` elements in `App.tsx` matching downstream API constraints.
+
+## 2024-05-27 - Context-Unaware Caching
+**Vulnerability:** API responses (Pull Requests) were cached using only the repository identifier as the key. This meant that if a privileged user fetched data, it could be served to a subsequent unprivileged user accessing the same repository, leading to information disclosure.
+**Learning:** Caching strategies must include the security context (e.g., authentication token or user ID) in the cache key, or disable caching when the context varies.
+**Prevention:** Modified `githubService` to bypass the cache whenever a custom token is provided, ensuring that cached data is only used for the default context.
