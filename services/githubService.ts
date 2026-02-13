@@ -600,6 +600,39 @@ export const githubService = {
       }
   },
 
+  getRepositoryStats: async (owner: string, repo: string, token?: string): Promise<{ issues: number; prs: number }> => {
+    const issueCacheKey = `issue-${owner}-${repo}`;
+    const prCacheKey = `pr-${owner}-${repo}`;
+
+    const cachedIssue = statsCache.get(issueCacheKey);
+    const cachedPr = statsCache.get(prCacheKey);
+
+    if (cachedIssue && cachedPr &&
+      Date.now() - cachedIssue.timestamp < STATS_CACHE_TTL &&
+      Date.now() - cachedPr.timestamp < STATS_CACHE_TTL) {
+      return { issues: cachedIssue.count, prs: cachedPr.count };
+    }
+
+    const api = await getOctokit(token);
+
+    // Parallel fetch: get repo details (cheap) and PR count (search - expensive but necessary)
+    // We replace 2 expensive calls with 1 cheap + 1 expensive.
+    const [repoResponse, prCount] = await Promise.all([
+      api.repos.get({ owner, repo }),
+      githubService.getOpenPullRequestCount(owner, repo, token)
+    ]);
+
+    const totalOpenCount = repoResponse.data.open_issues_count;
+
+    // Calculate issues count (open_issues_count includes PRs)
+    const issueCount = Math.max(0, totalOpenCount - prCount);
+
+    // Update cache for issues so if anyone calls getOpenIssueCount it's instant
+    statsCache.set(issueCacheKey, { timestamp: Date.now(), count: issueCount });
+
+    return { issues: issueCount, prs: prCount };
+  },
+
   getOpenIssueCount: async (owner: string, repo: string, token?: string): Promise<number> => {
     const cacheKey = `issue-${owner}-${repo}`;
     const cached = statsCache.get(cacheKey);
