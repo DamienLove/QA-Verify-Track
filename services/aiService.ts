@@ -1,4 +1,5 @@
 import type { GoogleGenAI } from "@google/genai";
+import { sanitizeInput } from "./security";
 
 // Prefer Vite env vars; fall back to Node env for tests/tooling.
 const getApiKey = () =>
@@ -27,10 +28,13 @@ export const aiService = {
       return "AI analysis disabled (no Gemini API key configured). Add VITE_GEMINI_API_KEY to .env.local to enable.";
     }
 
+    const safeTitle = sanitizeInput(title);
+    const safeDescription = sanitizeInput(description);
+
     try {
       const response = await client.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `You are a QA Lead. Analyze this bug report and provide 3 concise bullet points: 1) Potential root cause, 2) Key verification step, 3) Severity assessment.\n\nBug: ${title}\nDetails: ${description}`,
+        contents: `You are a QA Lead. Analyze this bug report and provide 3 concise bullet points: 1) Potential root cause, 2) Key verification step, 3) Severity assessment.\n\nBug: ${safeTitle}\nDetails: ${safeDescription}`,
         config: {
           temperature: 0.2, // Low temperature for more analytical/consistent results
         },
