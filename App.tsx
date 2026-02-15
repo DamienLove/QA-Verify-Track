@@ -456,6 +456,16 @@ const ConfigurationPage = ({
             return;
         }
 
+        // Sentinel Fix: Validate lengths to enforce logic constraints
+        if (formData.displayName && formData.displayName.length > 100) {
+             setSaveError('Display name must be 100 characters or less.');
+             return;
+        }
+        if (formData.githubToken && formData.githubToken.length > 512) {
+             setSaveError('Token is too long.');
+             return;
+        }
+
         // Validate Token (no whitespace)
         if (formData.useCustomToken !== false && formData.githubToken) {
             if (/\s/.test(formData.githubToken)) {
