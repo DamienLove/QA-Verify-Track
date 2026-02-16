@@ -5,6 +5,7 @@ let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: Comment[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
+const repoStatsCache = new Map<string, { timestamp: number; data: { issues: number; prs: number } }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
 const decodeBase64 = (value: string) => {
@@ -189,6 +190,7 @@ export const githubService = {
     currentToken = token;
     octokit = null; // Force recreation with new token on next use
     statsCache.clear(); // Clear stats cache when switching tokens/users
+    repoStatsCache.clear();
   },
 
   getOwnerType: async (owner: string): Promise<'User' | 'Organization' | null> => {
@@ -598,6 +600,32 @@ export const githubService = {
           console.error("Auto-resolve (update branch) failed", e);
           return false;
       }
+  },
+
+  getRepositoryStats: async (owner: string, repo: string, token?: string): Promise<{ issues: number; prs: number }> => {
+    const cacheKey = `stats-${owner}-${repo}`;
+    const cached = repoStatsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+      return cached.data;
+    }
+
+    const api = await getOctokit(token);
+
+    // Fetch total open items (issues + PRs) via efficient repos.get
+    // and PR count via search in parallel.
+    // open_issues_count includes both issues and PRs.
+    const [repoData, prCount] = await Promise.all([
+        api.repos.get({ owner, repo }),
+        githubService.getOpenPullRequestCount(owner, repo, token)
+    ]);
+
+    const totalOpen = repoData.data.open_issues_count;
+    // Ensure we don't return negative issues if search index is slightly lagging
+    const issuesCount = Math.max(0, totalOpen - prCount);
+    const data = { issues: issuesCount, prs: prCount };
+
+    repoStatsCache.set(cacheKey, { timestamp: Date.now(), data });
+    return data;
   },
 
   getOpenIssueCount: async (owner: string, repo: string, token?: string): Promise<number> => {
