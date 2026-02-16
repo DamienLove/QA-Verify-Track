@@ -232,11 +232,8 @@ const HomePage = ({
                 try {
                     // Use parallel fetching with explicit token to avoid singleton race conditions
                     // Also use optimized count-only fetch for PRs instead of fetching full list
-                    const [issues, prCount] = await Promise.all([
-                        githubService.getOpenIssueCount(repo.owner, repo.name, token),
-                        githubService.getOpenPullRequestCount(repo.owner, repo.name, token)
-                    ]);
-                    stats[repo.id] = { issues, prs: prCount };
+                    const repoStats = await githubService.getRepositoryStats(repo.owner, repo.name, token);
+                    stats[repo.id] = repoStats;
                 } catch (error) {
                     console.error(`Failed to fetch stats for ${repo.owner}/${repo.name}`, error);
                     errors[repo.id] = describeGithubError(error);
