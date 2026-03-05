@@ -17,3 +17,7 @@
 ## 2024-05-25 - Persistent Bottom Navigation State
 **Learning:** For apps with a persistent bottom bar, relying on hardcoded active states confuses users when navigating to "secondary" top-level pages (like Config). Users expect the navigation bar to accurately reflect their location.
 **Action:** Use `useLocation` to dynamically determine the active tab in global navigation components. Ensure persistent navigation elements remain visible on all top-level destinations to prevent "dead ends".
+
+## 2024-05-26 - Empty States in Tabbed Views
+**Learning:** In tabbed interfaces (like Dashboard), ensuring every tab has an explicit empty state is crucial. Missing this leads to "blank screen anxiety" where users suspect a bug.
+**Action:** When implementing tabbed lists, always check `length === 0` and render a consistent empty state component (icon + title + helper text).
