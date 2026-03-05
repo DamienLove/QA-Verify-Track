@@ -5,6 +5,7 @@ let octokit: Octokit | null = null;
 let currentToken: string | null = null;
 const commentsCache = new Map<string, { timestamp: string; data: Comment[] }>();
 const statsCache = new Map<string, { timestamp: number; count: number }>();
+const repoStatsCache = new Map<string, { timestamp: number; issues: number; prs: number }>();
 const STATS_CACHE_TTL = 60000; // 60 seconds
 
 const decodeBase64 = (value: string) => {
@@ -598,6 +599,31 @@ export const githubService = {
           console.error("Auto-resolve (update branch) failed", e);
           return false;
       }
+  },
+
+  getRepositoryStats: async (owner: string, repo: string, token?: string): Promise<{ issues: number; prs: number }> => {
+    const cacheKey = `stats-${owner}-${repo}`;
+    const cached = repoStatsCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_TTL) {
+      return { issues: cached.issues, prs: cached.prs };
+    }
+
+    const api = await getOctokit(token);
+
+    // Parallel fetch: Repo details (cheap) and PR count (search - expensive but needed)
+    // We use search for PRs because open_issues_count includes both, and we need to separate them.
+    const [repoDetails, prCount] = await Promise.all([
+      api.repos.get({ owner, repo }),
+      githubService.getOpenPullRequestCount(owner, repo, token)
+    ]);
+
+    const totalOpen = repoDetails.data.open_issues_count;
+    // Calculate issues
+    const issueCount = Math.max(0, totalOpen - prCount);
+
+    repoStatsCache.set(cacheKey, { timestamp: Date.now(), issues: issueCount, prs: prCount });
+
+    return { issues: issueCount, prs: prCount };
   },
 
   getOpenIssueCount: async (owner: string, repo: string, token?: string): Promise<number> => {
