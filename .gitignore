@@ -39,3 +39,12 @@ androidApp/signing/*.jar
 *.sw?
 /LastPrompt.txt
 /uibug.jpg
+
+# Security / Secrets
+serviceAccountKey.json
+*.jks
+*.keystore
+*.p12
+*.der
+*.key
+*.pem
